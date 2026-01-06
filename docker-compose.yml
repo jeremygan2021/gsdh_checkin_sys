@@ -8,16 +8,16 @@ services:
       - "8800:8800"
     restart: always
     environment:
-      # - DB_HOST=6.6.6.6
-      # - DB_PORT=5432
-      # - DB_USER=gsdh
-      # - DB_PASSWORD=123gsdh
-      # - DB_NAME=gsdh
-
-      - DB_HOST=121.43.104.161
-      - DB_PORT=6432
+      - DB_HOST=localhost
+      - DB_PORT=5432
       - DB_USER=gsdh
       - DB_PASSWORD=123gsdh
       - DB_NAME=gsdh
+
+      # - DB_HOST=121.43.104.161
+      # - DB_PORT=6432
+      # - DB_USER=gsdh
+      # - DB_PASSWORD=123gsdh
+      # - DB_NAME=gsdh
     volumes:
       - .:/app

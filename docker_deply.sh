@@ -16,7 +16,7 @@
 SERVER_HOST="121.43.104.161"           # 服务器IP地址
 SERVER_USER="ubuntu"                     # 服务器用户名
 SERVER_PASSWORD="qweasdzxc1"        # 服务器密码
-SERVER_PORT="8800"         
+SERVER_PORT="6222"         
 
 # 配置局域网变量 - 公司局域网上传方法
 # SERVER_HOST="6.6.6.86"           # 服务器IP地址
