@@ -13,23 +13,23 @@
 # =============================================================================
 
 # 配置非局域网变量 - 公网上传方法
-# SERVER_HOST="121.43.104.161"           # 服务器IP地址
-# SERVER_USER="ubuntu"                     # 服务器用户名
-# SERVER_PASSWORD="qweasdzxc1"        # 服务器密码
-# SERVER_PORT="6222"         
-
-# 配置局域网变量 - 公司局域网上传方法
-SERVER_HOST="6.6.6.86"           # 服务器IP地址
+SERVER_HOST="121.43.104.161"           # 服务器IP地址
 SERVER_USER="ubuntu"                     # 服务器用户名
 SERVER_PASSWORD="qweasdzxc1"        # 服务器密码
-SERVER_PORT="22"                       # SSH端口，默认22
+SERVER_PORT="8800"         
+
+# 配置局域网变量 - 公司局域网上传方法
+# SERVER_HOST="6.6.6.86"           # 服务器IP地址
+# SERVER_USER="ubuntu"                     # 服务器用户名
+# SERVER_PASSWORD="qweasdzxc1"        # 服务器密码
+# SERVER_PORT="22"                       # SSH端口，默认22
 
 
-IMAGE_NAME="crystal_back"              # Docker镜像名称
+IMAGE_NAME="checkin_sys"              # Docker镜像名称
 IMAGE_TAG="latest"                     # Docker镜像标签
-CONTAINER_NAME="crystal-container"       # 容器名称
-LOCAL_PORT="8011"                      # 本地端口
-CONTAINER_PORT="8011"                  # 容器端口
+CONTAINER_NAME="checkin_sys-container"       # 容器名称
+LOCAL_PORT="8800"                      # 本地端口
+CONTAINER_PORT="8800"                  # 容器端口
 TAR_FILE="${IMAGE_NAME}-${IMAGE_TAG}.tar"  # 压缩包文件名
 
 # 架构相关变量
