@@ -8,16 +8,17 @@ from psycopg2.extras import RealDictCursor
 from typing import Optional, List, Dict
 import random
 import uuid
+import os
 
 app = FastAPI()
 
 # Database connection parameters
 DB_CONFIG = {
-    "host": "121.43.104.161",
-    "port": "6432",
-    "user": "gsdh",
-    "password": "123gsdh",
-    "database": "gsdh"
+    "host": os.getenv("DB_HOST", "121.43.104.161"),
+    "port": os.getenv("DB_PORT", "6432"),
+    "user": os.getenv("DB_USER", "gsdh"),
+    "password": os.getenv("DB_PASSWORD", "123gsdh"),
+    "database": os.getenv("DB_NAME", "gsdh")
 }
 
 # Mount static files
@@ -39,6 +40,8 @@ class AddUserRequest(BaseModel):
     name: str
     phone: str
     industry_company: Optional[str] = None
+    fee: Optional[str] = None
+    payment_channel: Optional[str] = None
 
 def get_db_connection():
     conn = psycopg2.connect(**DB_CONFIG)
@@ -165,6 +168,7 @@ async def search_user(query: str):
     """
     Search user by phone (exact match) or name (fuzzy match).
     """
+    print(f"DEBUG: Searching for query: {query}")
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -287,13 +291,24 @@ async def add_user_api(user_data: AddUserRequest):
             conn.close()
             return JSONResponse(content={"success": False, "message": "该手机号已存在"}, status_code=400)
             
-        new_id = str(uuid.uuid4())
+        # Calculate next new_id
+        cur.execute("SELECT MAX(CAST(new_id AS INTEGER)) FROM gsdh_data WHERE new_id ~ '^[0-9]+$'")
+        row = cur.fetchone()
+        max_id = row[0] if row and row[0] is not None else 0
+        new_id = str(max_id + 1)
         
         insert_sql = """
-        INSERT INTO gsdh_data (new_id, name, phone, industry_company, is_signed)
-        VALUES (%s, %s, %s, %s, 'FALSE')
+        INSERT INTO gsdh_data (new_id, name, phone, industry_company, fee, payment_channel, is_signed)
+        VALUES (%s, %s, %s, %s, %s, %s, 'FALSE')
         """
-        cur.execute(insert_sql, (new_id, user_data.name, user_data.phone, user_data.industry_company))
+        cur.execute(insert_sql, (
+            new_id, 
+            user_data.name, 
+            user_data.phone, 
+            user_data.industry_company,
+            user_data.fee,
+            user_data.payment_channel
+        ))
         
         conn.commit()
         cur.close()
@@ -307,4 +322,4 @@ async def add_user_api(user_data: AddUserRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8800)
