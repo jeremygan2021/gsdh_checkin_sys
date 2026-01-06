@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>云南AI共生大会 - 添加嘉宾</title>
+    <style>
+        :root {
+            --primary-color: #00f2ff; /* Cyan from the AI sphere/text */
+            --secondary-color: #0066ff; /* Rich blue */
+            --bg-color: #050814; /* Deep space blue/black */
+            --card-bg: rgba(12, 24, 50, 0.5); /* Glassy blue tint */
+            --text-color: #ffffff;
+            --text-muted: #b0c4de; /* Light blue-grey */
+            --accent-glow: rgba(0, 242, 255, 0.6);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            background-image: 
+                radial-gradient(circle at 50% 0%, #1a3a75 0%, #050814 60%),
+                radial-gradient(circle at 85% 30%, rgba(0, 242, 255, 0.1) 0%, transparent 40%),
+                radial-gradient(circle at 15% 70%, rgba(0, 102, 255, 0.15) 0%, transparent 40%);
+            background-attachment: fixed;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 600px;
+            padding: 30px 20px;
+            position: relative;
+            z-index: 1;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid rgba(0, 242, 255, 0.2);
+        }
+        
+        .header-img {
+            width: 100%;
+            max-height: 220px;
+            object-fit: cover;
+            border-radius: 12px;
+            margin-bottom: 25px;
+            box-shadow: 0 0 20px rgba(0, 242, 255, 0.2);
+            border: 1px solid rgba(0, 242, 255, 0.3);
+        }
+
+        h1 {
+            font-size: 2.4rem;
+            margin-bottom: 15px;
+            background: linear-gradient(180deg, #ffffff 0%, #d0eaff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 900;
+            letter-spacing: 1px;
+            text-shadow: 0 0 30px rgba(0, 242, 255, 0.4);
+            position: relative;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 25px;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(0, 242, 255, 0.2);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(0, 242, 255, 0.05);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        h2 {
+            color: #fff;
+            text-align: center;
+            margin-bottom: 25px;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+
+        .input-group {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 10px;
+            font-size: 0.95rem;
+            color: var(--primary-color);
+            font-weight: 500;
+        }
+
+        input, textarea, select {
+            width: 100%;
+            padding: 14px 16px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(0, 242, 255, 0.3);
+            border-radius: 8px;
+            color: white;
+            font-size: 1rem;
+            outline: none;
+            transition: all 0.3s;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.3);
+        }
+
+        input:focus, textarea:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 15px rgba(0, 242, 255, 0.3), inset 0 2px 5px rgba(0,0,0,0.3);
+            background: rgba(0, 0, 0, 0.6);
+        }
+
+        button {
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(90deg, #0051ff 0%, #00f2ff 100%);
+            color: #fff;
+            font-size: 1.1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            box-shadow: 0 4px 15px rgba(0, 242, 255, 0.3);
+            text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+        }
+
+        button:hover {
+            opacity: 1;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 242, 255, 0.5);
+            background: linear-gradient(90deg, #0040cc 0%, #00d0dd 100%);
+        }
+
+        button:disabled {
+            background: #2a3b55;
+            cursor: not-allowed;
+            opacity: 0.6;
+            box-shadow: none;
+            transform: none;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .error-msg {
+            color: #ff6b6b;
+            font-size: 0.9rem;
+            margin-top: 15px;
+            text-align: center;
+            background: rgba(255, 107, 107, 0.1);
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 107, 107, 0.3);
+        }
+
+        .success-msg {
+            color: #00ff88;
+            font-size: 1.2rem;
+            text-align: center;
+            margin: 20px 0 10px;
+            text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+        }
+        
+        .loader {
+            border: 3px solid rgba(255,255,255,0.1);
+            border-radius: 50%;
+            border-top: 3px solid var(--primary-color);
+            width: 20px;
+            height: 20px;
+            animation: spin 0.8s linear infinite;
+            display: inline-block;
+            vertical-align: middle;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <img src="/static/image.jpg" alt="云南AI共生大会" class="header-img" onerror="this.style.display='none'">
+            <h1>添加新嘉宾</h1>
+        </header>
+
+        <div class="card">
+            <form id="add-user-form" onsubmit="submitAddUser(event)">
+                <div class="input-group">
+                    <label>姓名</label>
+                    <input type="text" id="name" required placeholder="请输入嘉宾姓名">
+                </div>
+
+                <div class="input-group">
+                    <label>手机号码</label>
+                    <input type="text" id="phone" required placeholder="请输入手机号码">
+                </div>
+
+                <div class="input-group">
+                    <label>单位名称 / 行业</label>
+                    <input type="text" id="company" placeholder="请输入单位名称或行业信息">
+                </div>
+
+                <button type="submit" id="submit-btn">确认添加</button>
+            </form>
+            <div id="submit-error" class="error-msg hidden"></div>
+            <div id="submit-success" class="success-msg hidden"></div>
+        </div>
+        
+        <div style="text-align: center; margin-top: 20px;">
+             <a href="/" style="color: var(--text-muted); text-decoration: none; border-bottom: 1px dashed var(--text-muted);">返回签到首页</a>
+        </div>
+    </div>
+
+    <script>
+        async function submitAddUser(e) {
+            e.preventDefault();
+            const btn = document.getElementById('submit-btn');
+            const errorDiv = document.getElementById('submit-error');
+            const successDiv = document.getElementById('submit-success');
+            
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loader"></span> 提交中...';
+            errorDiv.classList.add('hidden');
+            successDiv.classList.add('hidden');
+
+            const payload = {
+                name: document.getElementById('name').value,
+                phone: document.getElementById('phone').value,
+                industry_company: document.getElementById('company').value
+            };
+
+            try {
+                const response = await fetch('/api/add-user', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    successDiv.textContent = "添加成功！该嘉宾现在可以进行签到了。";
+                    successDiv.classList.remove('hidden');
+                    document.getElementById('add-user-form').reset();
+                } else {
+                    errorDiv.textContent = data.message || "提交失败";
+                    errorDiv.classList.remove('hidden');
+                }
+            } catch (err) {
+                errorDiv.textContent = "网络错误，请稍后重试";
+                errorDiv.classList.remove('hidden');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '确认添加';
+            }
+        }
+    </script>
+</body>
+</html>

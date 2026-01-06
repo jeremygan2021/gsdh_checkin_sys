@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>云南AI共生大会 - 签到</title>
+    <style>
+        :root {
+            --primary-color: #00f2ff; /* Cyan from the AI sphere/text */
+            --secondary-color: #0066ff; /* Rich blue */
+            --bg-color: #050814; /* Deep space blue/black */
+            --card-bg: rgba(12, 24, 50, 0.5); /* Glassy blue tint */
+            --text-color: #ffffff;
+            --text-muted: #b0c4de; /* Light blue-grey */
+            --accent-glow: rgba(0, 242, 255, 0.6);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            /* Deep radial gradient mimicking the poster's atmosphere */
+            background-image: 
+                radial-gradient(circle at 50% 0%, #1a3a75 0%, #050814 60%),
+                radial-gradient(circle at 85% 30%, rgba(0, 242, 255, 0.1) 0%, transparent 40%),
+                radial-gradient(circle at 15% 70%, rgba(0, 102, 255, 0.15) 0%, transparent 40%);
+            background-attachment: fixed;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow-x: hidden;
+        }
+
+        /* Add a subtle grid or tech-line overlay if desired, but keep it clean for now */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 600px;
+            padding: 30px 20px;
+            position: relative;
+            z-index: 1;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid rgba(0, 242, 255, 0.2);
+        }
+        
+        .header-img {
+            width: 100%;
+            max-height: 220px;
+            object-fit: cover;
+            border-radius: 12px;
+            margin-bottom: 25px;
+            box-shadow: 0 0 20px rgba(0, 242, 255, 0.2);
+            border: 1px solid rgba(0, 242, 255, 0.3);
+        }
+
+        h1 {
+            font-size: 2.4rem;
+            margin-bottom: 15px;
+            /* Poster style: Bold white/cyan gradient text */
+            background: linear-gradient(180deg, #ffffff 0%, #d0eaff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 900;
+            letter-spacing: 1px;
+            text-shadow: 0 0 30px rgba(0, 242, 255, 0.4);
+            position: relative;
+        }
+
+        .event-info {
+            font-size: 0.95rem;
+            color: #dbe4ff;
+            line-height: 1.7;
+            margin-top: 20px;
+            text-align: left;
+            background: rgba(0, 20, 60, 0.4);
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid var(--primary-color);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            backdrop-filter: blur(5px);
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 25px;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(0, 242, 255, 0.2);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(0, 242, 255, 0.05);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card:hover {
+            box-shadow: 0 8px 40px 0 rgba(0, 0, 0, 0.6), inset 0 0 20px rgba(0, 242, 255, 0.1);
+        }
+
+        h2 {
+            color: #fff;
+            text-align: center;
+            margin-bottom: 25px;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+
+        .input-group {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 10px;
+            font-size: 0.95rem;
+            color: var(--primary-color);
+            font-weight: 500;
+        }
+
+        input, textarea, select {
+            width: 100%;
+            padding: 14px 16px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(0, 242, 255, 0.3);
+            border-radius: 8px;
+            color: white;
+            font-size: 1rem;
+            outline: none;
+            transition: all 0.3s;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.3);
+        }
+
+        input:focus, textarea:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 15px rgba(0, 242, 255, 0.3), inset 0 2px 5px rgba(0,0,0,0.3);
+            background: rgba(0, 0, 0, 0.6);
+        }
+
+        /* Placeholder styling */
+        ::placeholder {
+            color: rgba(255, 255, 255, 0.3);
+        }
+
+        button {
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 8px;
+            /* Gradient button */
+            background: linear-gradient(90deg, #0051ff 0%, #00f2ff 100%);
+            color: #fff;
+            font-size: 1.1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            box-shadow: 0 4px 15px rgba(0, 242, 255, 0.3);
+            text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+        }
+
+        button:hover {
+            opacity: 1;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 242, 255, 0.5);
+            background: linear-gradient(90deg, #0040cc 0%, #00d0dd 100%);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            background: #2a3b55;
+            cursor: not-allowed;
+            opacity: 0.6;
+            box-shadow: none;
+            transform: none;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .error-msg {
+            color: #ff6b6b;
+            font-size: 0.9rem;
+            margin-top: 15px;
+            text-align: center;
+            background: rgba(255, 107, 107, 0.1);
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 107, 107, 0.3);
+        }
+
+        .success-msg {
+            color: #00ff88;
+            font-size: 1.8rem;
+            text-align: center;
+            margin: 20px 0 10px;
+            text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+        }
+        
+        .seat-info {
+            font-size: 3rem;
+            font-weight: 800;
+            color: #fff;
+            margin: 30px 0;
+            text-shadow: 0 0 30px var(--primary-color);
+            padding: 30px;
+            border: 2px solid var(--primary-color);
+            border-radius: 16px;
+            background: rgba(0, 242, 255, 0.05);
+            box-shadow: 0 0 40px rgba(0, 242, 255, 0.15), inset 0 0 20px rgba(0, 242, 255, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Shine effect on seat info */
+        .seat-info::after {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(45deg, transparent, rgba(255,255,255,0.1), transparent);
+            transform: rotate(45deg);
+            animation: shine 3s infinite;
+        }
+
+        @keyframes shine {
+            0% { transform: translateX(-100%) rotate(45deg); }
+            100% { transform: translateX(100%) rotate(45deg); }
+        }
+
+        .user-preview {
+            background: rgba(0, 81, 255, 0.15);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 25px;
+            border: 1px solid rgba(0, 81, 255, 0.4);
+            text-align: center;
+        }
+
+        .user-preview h3 {
+            margin-bottom: 8px;
+            font-size: 1.3rem;
+            color: #fff;
+        }
+        
+        .user-preview p {
+            color: #b0c4de;
+            font-size: 0.95rem;
+        }
+
+        /* Loading spinner */
+        .loader {
+            border: 3px solid rgba(255,255,255,0.1);
+            border-radius: 50%;
+            border-top: 3px solid var(--primary-color);
+            width: 20px;
+            height: 20px;
+            animation: spin 0.8s linear infinite;
+            display: inline-block;
+            vertical-align: middle;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .user-select-item {
+            padding: 15px;
+            background: rgba(255,255,255,0.05);
+            margin-bottom: 8px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+        }
+        
+        .user-select-item:hover {
+            background: rgba(0, 242, 255, 0.1);
+            border-color: var(--primary-color);
+        }
+
+        /* Tablemates styling */
+        .tablemates-section {
+            margin-top: 25px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            padding-top: 20px;
+        }
+        
+        .tablemate-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 12px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: transform 0.2s;
+            cursor: pointer;
+            position: relative;
+        }
+        
+        .tablemate-card:hover {
+            transform: translateX(5px);
+            background: rgba(255, 255, 255, 0.08);
+            border-color: var(--primary-color);
+        }
+        
+        .tablemate-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--secondary-color), var(--primary-color));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 15px;
+            font-size: 1.2rem;
+            flex-shrink: 0;
+        }
+        
+        .tablemate-info {
+            text-align: left;
+            flex-grow: 1;
+        }
+        
+        .tablemate-name {
+            font-weight: bold;
+            color: #fff;
+            font-size: 1rem;
+        }
+        
+        .tablemate-industry {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+        
+        .click-hint {
+            font-size: 0.7rem;
+            color: var(--primary-color);
+            opacity: 0.7;
+            margin-left: 10px;
+        }
+
+        /* Modal Styling */
+        .modal {
+            display: none; 
+            position: fixed; 
+            z-index: 1000; 
+            left: 0;
+            top: 0;
+            width: 100%; 
+            height: 100%; 
+            overflow: auto; 
+            background-color: rgba(0,0,0,0.8); 
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-content {
+            background: var(--bg-color);
+            margin: 15% auto; 
+            padding: 25px;
+            border: 1px solid var(--primary-color);
+            border-radius: 15px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 0 30px rgba(0, 242, 255, 0.3);
+            position: relative;
+            animation: modalOpen 0.3s;
+        }
+
+        @keyframes modalOpen {
+            from {opacity: 0; transform: translateY(-50px);}
+            to {opacity: 1; transform: translateY(0);}
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: var(--primary-color);
+            text-decoration: none;
+            cursor: pointer;
+        }
+        
+        .detail-item {
+            margin-bottom: 15px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding-bottom: 10px;
+        }
+        
+        .detail-label {
+            color: var(--primary-color);
+            font-size: 0.85rem;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .detail-value {
+            color: #fff;
+            font-size: 1rem;
+            line-height: 1.5;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <img src="/static/image.jpg" alt="云南AI共生大会" class="header-img" onerror="this.style.display='none'">
+            <div style="text-align: center; margin-bottom: 10px; color: var(--primary-color); font-size: 0.8rem; letter-spacing: 2px; font-weight: 600; opacity: 0.9;">
+                2026 INTELLIGENT LEADERSHIP • AI SYMBIOSIS
+            </div>
+            <h1>云南AI共生大会</h1>
+            <div class="event-info">
+                <p>📅 <strong>时间：</strong>1月10日 下午 2:00</p>
+                <p>📍 <strong>地点：</strong>金鼎科技园18号平台B座一楼报告厅</p>
+                <p>💡 <strong>内容：</strong>邀请重磅大咖分享AI在各行业的企业应用及案例，含深度交流环节。</p>
+            </div>
+        </header>
+
+        <!-- Step 1: Search -->
+        <div id="step-search" class="card">
+            <h2 style="margin-bottom: 20px;">嘉宾签到</h2>
+            <div class="input-group">
+                <label>请输入手机号码或姓名</label>
+                <input type="text" id="search-input" placeholder="例如：13800000000 或 张三">
+            </div>
+            <button onclick="searchUser()" id="search-btn">查询</button>
+            <div id="search-error" class="error-msg hidden"></div>
+            <div id="user-list" class="hidden" style="margin-top: 15px;"></div>
+        </div>
+
+        <!-- Step 2: Fill Info -->
+        <div id="step-form" class="card hidden">
+            <div class="user-preview">
+                <h3 id="display-name"></h3>
+                <p id="display-phone"></p>
+                <p id="display-company" style="font-size: 0.8rem; margin-top: 5px;"></p>
+            </div>
+
+            <form id="checkin-form" onsubmit="submitCheckin(event)">
+                <input type="hidden" id="gsdh-id">
+                
+                <div class="input-group">
+                    <label>姓名</label>
+                    <input type="text" id="form-name" required>
+                </div>
+
+                <div class="input-group">
+                    <label>手机号码 (不公开)</label>
+                    <input type="text" id="form-phone" required>
+                </div>
+
+                <div class="input-group">
+                    <label>单位名称</label>
+                    <input type="text" id="form-company" placeholder="点此输入">
+                </div>
+
+                <div class="input-group">
+                    <label>职务 (不公开)</label>
+                    <input type="text" id="form-position" placeholder="点此输入">
+                </div>
+
+                <div class="input-group">
+                    <label>公司主要经营 / 业务</label>
+                    <textarea id="form-business" rows="2" placeholder="点此输入"></textarea>
+                </div>
+
+                <div class="input-group">
+                    <label>2026年业务愿景</label>
+                    <textarea id="form-vision" rows="3" placeholder="点此输入 (为了业务更好对接，最好表述清晰)"></textarea>
+                </div>
+
+                <input type="hidden" id="form-location" value="">
+
+                <button type="submit" id="submit-btn">确认签到</button>
+            </form>
+            <div id="submit-error" class="error-msg hidden"></div>
+        </div>
+
+        <!-- Step 3: Success -->
+        <div id="step-success" class="card hidden" style="text-align: center; padding: 40px 20px;">
+            <div style="font-size: 4rem; margin-bottom: 20px;">🎉</div>
+            <h2 class="success-msg">签到成功！</h2>
+            <p style="color: var(--text-muted); margin-bottom: 20px;">您的座位已分配</p>
+            
+            <div id="seat-display" class="seat-info">
+                <!-- Seat number will be inserted here -->
+            </div>
+            
+            <div id="tablemates-container" class="tablemates-section hidden">
+                <p style="color: var(--primary-color); margin-bottom: 15px; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px;">同桌嘉宾推荐 <span style="font-size: 0.7em; opacity: 0.7; text-transform: none;">(点击卡片查看详情)</span></p>
+                <div id="tablemates-list">
+                    <!-- Tablemates inserted here -->
+                </div>
+            </div>
+            
+            <p style="margin-top: 20px;">请入座等待会议开始</p>
+            <button onclick="resetFlow()" style="margin-top: 30px; background: transparent; border: 1px solid rgba(255,255,255,0.2);">返回首页</button>
+        </div>
+
+        <!-- Step 4: Already Signed -->
+        <div id="step-already-signed" class="card hidden" style="text-align: center; padding: 40px 20px;">
+            <div style="font-size: 4rem; margin-bottom: 20px;">✅</div>
+            <h2 class="success-msg" style="color: #00f2ff;">您已完成签到</h2>
+            <div class="user-preview" style="margin: 20px 0; background: rgba(255,255,255,0.05); border: none;">
+                <h3 id="signed-name" style="margin-bottom: 5px;"></h3>
+                <p id="signed-phone" style="opacity: 0.7;"></p>
+            </div>
+            <p style="color: var(--text-muted); margin-bottom: 20px;">您的座位是</p>
+            
+            <div id="signed-seat-display" class="seat-info">
+                <!-- Seat number will be inserted here -->
+            </div>
+            
+            <div id="signed-tablemates-container" class="tablemates-section hidden">
+                <p style="color: var(--primary-color); margin-bottom: 15px; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px;">同桌嘉宾推荐 <span style="font-size: 0.7em; opacity: 0.7; text-transform: none;">(点击卡片查看详情)</span></p>
+                <div id="signed-tablemates-list">
+                    <!-- Tablemates inserted here -->
+                </div>
+            </div>
+            
+            <p style="margin-top: 20px;">请入座等待会议开始</p>
+            <button onclick="resetFlow()" style="margin-top: 30px; background: transparent; border: 1px solid rgba(255,255,255,0.2);">返回首页</button>
+        </div>
+    </div>
+
+    <!-- Modal for details -->
+    <div id="detail-modal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <div style="text-align: center; margin-bottom: 20px;">
+                <div id="modal-avatar" style="width: 60px; height: 60px; border-radius: 50%; background: linear-gradient(135deg, var(--secondary-color), var(--primary-color)); display: inline-flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.5rem; margin-bottom: 10px;"></div>
+                <h2 id="modal-name" style="color: #fff; margin-bottom: 5px;"></h2>
+                <p id="modal-industry" style="color: var(--primary-color); font-size: 0.9rem;"></p>
+            </div>
+            
+            <div class="detail-item">
+                <div class="detail-label">单位名称</div>
+                <div id="modal-company" class="detail-value"></div>
+            </div>
+            
+            <div class="detail-item">
+                <div class="detail-label">职位</div>
+                <div id="modal-position" class="detail-value"></div>
+            </div>
+            
+            <div class="detail-item">
+                <div class="detail-label">公司主要经营 / 业务</div>
+                <div id="modal-business" class="detail-value"></div>
+            </div>
+            
+            <div class="detail-item" style="border-bottom: none;">
+                <div class="detail-label">2026年业务愿景</div>
+                <div id="modal-vision" class="detail-value"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Store selected user data
+        let currentUser = null;
+
+        async function searchUser() {
+            const query = document.getElementById('search-input').value.trim();
+            const btn = document.getElementById('search-btn');
+            const errorDiv = document.getElementById('search-error');
+            const listDiv = document.getElementById('user-list');
+
+            if (!query) {
+                errorDiv.textContent = "请输入查询内容";
+                errorDiv.classList.remove('hidden');
+                return;
+            }
+
+            // Reset UI
+            errorDiv.classList.add('hidden');
+            listDiv.classList.add('hidden');
+            listDiv.innerHTML = '';
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loader"></span> 查询中...';
+
+            try {
+                const response = await fetch(`/api/search?query=${encodeURIComponent(query)}`);
+                const data = await response.json();
+
+                if (response.ok) {
+                    if (data.multiple) {
+                        // Handle multiple results
+                        listDiv.classList.remove('hidden');
+                        listDiv.innerHTML = '<p style="margin-bottom:10px; color:var(--text-muted)">查询到多位嘉宾，请选择：</p>';
+                        data.users.forEach(user => {
+                            const item = document.createElement('div');
+                            item.className = 'user-select-item';
+                            item.innerHTML = `<strong>${user.name}</strong> <span style="font-size:0.8em; opacity:0.7">(${user.phone})</span>`;
+                            item.onclick = () => selectUser(user);
+                            listDiv.appendChild(item);
+                        });
+                    } else if (data.already_signed) {
+                        // Show already signed screen
+                        document.getElementById('step-search').classList.add('hidden');
+                        document.getElementById('step-already-signed').classList.remove('hidden');
+                        
+                        document.getElementById('signed-name').textContent = data.user.name;
+                        document.getElementById('signed-phone').textContent = data.user.phone;
+                        document.getElementById('signed-seat-display').textContent = data.seat || "自由席";
+                        
+                        // Show tablemates if available
+                        if (data.tablemates && data.tablemates.length > 0) {
+                            renderTablemates(data.tablemates, 'signed-tablemates-list', 'signed-tablemates-container');
+                        } else {
+                            document.getElementById('signed-tablemates-container').classList.add('hidden');
+                        }
+                    } else {
+                        // Single user found
+                        selectUser(data.user);
+                    }
+                } else {
+                    errorDiv.textContent = data.message || "查询失败";
+                    errorDiv.classList.remove('hidden');
+                    errorDiv.style.color = '#ff4d4d';
+                }
+            } catch (err) {
+                errorDiv.textContent = "网络错误，请稍后重试";
+                errorDiv.classList.remove('hidden');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '查询';
+            }
+        }
+
+        function selectUser(user) {
+            currentUser = user;
+            
+            // Populate form
+            document.getElementById('gsdh-id').value = user.new_id;
+            document.getElementById('form-name').value = user.name;
+            document.getElementById('form-phone').value = user.phone;
+            document.getElementById('form-company').value = user.industry_company || ''; // Pre-fill if we have something roughly mapping
+            
+            // Display preview
+            document.getElementById('display-name').textContent = user.name;
+            document.getElementById('display-phone').textContent = user.phone;
+            document.getElementById('display-company').textContent = user.industry_company || '暂无单位信息';
+
+            // Switch steps
+            document.getElementById('step-search').classList.add('hidden');
+            document.getElementById('step-form').classList.remove('hidden');
+        }
+
+        async function submitCheckin(e) {
+            e.preventDefault();
+            const btn = document.getElementById('submit-btn');
+            const errorDiv = document.getElementById('submit-error');
+            
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loader"></span> 提交中...';
+            errorDiv.classList.add('hidden');
+
+            const payload = {
+                gsdh_id: document.getElementById('gsdh-id').value,
+                name: document.getElementById('form-name').value,
+                phone: document.getElementById('form-phone').value,
+                company_name: document.getElementById('form-company').value,
+                position: document.getElementById('form-position').value,
+                business_scope: document.getElementById('form-business').value,
+                vision_2026: document.getElementById('form-vision').value,
+                location: document.getElementById('form-location').value
+            };
+
+            try {
+                const response = await fetch('/api/checkin', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    // Show assigned seat
+                    document.getElementById('seat-display').textContent = data.seat || "自由席";
+                    
+                    // Show tablemates if available
+                    if (data.tablemates && data.tablemates.length > 0) {
+                        renderTablemates(data.tablemates, 'tablemates-list', 'tablemates-container');
+                    } else {
+                        document.getElementById('tablemates-container').classList.add('hidden');
+                    }
+                    
+                    document.getElementById('step-form').classList.add('hidden');
+                    document.getElementById('step-success').classList.remove('hidden');
+                } else {
+                    errorDiv.textContent = data.message || "提交失败";
+                    errorDiv.classList.remove('hidden');
+                }
+            } catch (err) {
+                errorDiv.textContent = "网络错误，请稍后重试";
+                errorDiv.classList.remove('hidden');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '确认签到';
+            }
+        }
+        
+        function renderTablemates(tablemates, listId, containerId) {
+            const list = document.getElementById(listId);
+            list.innerHTML = '';
+            
+            tablemates.forEach(mate => {
+                const initial = mate.name ? mate.name.charAt(0) : '?';
+                const div = document.createElement('div');
+                div.className = 'tablemate-card';
+                div.innerHTML = `
+                    <div class="tablemate-avatar">${initial}</div>
+                    <div class="tablemate-info">
+                        <div class="tablemate-name">${mate.name} <span class="click-hint">点击详情</span></div>
+                        <div class="tablemate-industry">${mate.industry}</div>
+                    </div>
+                `;
+                // Add click event listener for details
+                div.onclick = () => showModal(mate);
+                list.appendChild(div);
+            });
+            
+            document.getElementById(containerId).classList.remove('hidden');
+        }
+
+        function showModal(mate) {
+            const modal = document.getElementById('detail-modal');
+            const initial = mate.name ? mate.name.charAt(0) : '?';
+            
+            document.getElementById('modal-avatar').textContent = initial;
+            document.getElementById('modal-name').textContent = mate.name;
+            document.getElementById('modal-industry').textContent = mate.industry;
+            document.getElementById('modal-company').textContent = mate.company_name || '未填写';
+            document.getElementById('modal-position').textContent = mate.position || '未填写';
+            document.getElementById('modal-business').textContent = mate.business_scope || '未填写';
+            document.getElementById('modal-vision').textContent = mate.vision_2026 || '未填写';
+            
+            modal.style.display = "block";
+        }
+
+        function closeModal() {
+            document.getElementById('detail-modal').style.display = "none";
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('detail-modal');
+            if (event.target == modal) {
+                modal.style.display = "none";
+            }
+        }
+
+        function resetFlow() {
+            document.getElementById('step-success').classList.add('hidden');
+            document.getElementById('step-already-signed').classList.add('hidden');
+            document.getElementById('step-search').classList.remove('hidden');
+            document.getElementById('search-input').value = '';
+            document.getElementById('user-list').innerHTML = '';
+            document.getElementById('checkin-form').reset();
+            currentUser = null;
+        }
+    </script>
+</body>
+</html>
