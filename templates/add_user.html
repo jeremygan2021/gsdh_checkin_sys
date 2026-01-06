@@ -297,13 +297,16 @@
     </div>
 
     <script>
+        // Use secret from backend
+        const ACCESS_SECRET = "{{ secret }}";
+
         // Password Check Logic
         function checkSecret() {
             const input = document.getElementById('secret-input');
             const error = document.getElementById('secret-error');
             const overlay = document.getElementById('password-overlay');
             
-            if (input.value === '123quant-speed') {
+            if (input.value === ACCESS_SECRET) {
                 overlay.style.opacity = '0';
                 setTimeout(() => {
                     overlay.style.display = 'none';

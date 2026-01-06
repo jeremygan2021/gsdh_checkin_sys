@@ -9,6 +9,9 @@ from typing import Optional, List, Dict
 import random
 import uuid
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = FastAPI()
 
@@ -277,7 +280,9 @@ async def checkin_user(checkin_data: CheckinRequest):
 
 @app.get("/add-user", response_class=HTMLResponse)
 async def add_user_page(request: Request):
-    return templates.TemplateResponse("add_user.html", {"request": request})
+    secret = os.getenv("ADD_USER_SECRET", "123quant-speed")
+    print(f"DEBUG: Secret loaded: '{secret}'")
+    return templates.TemplateResponse("add_user.html", {"request": request, "secret": secret})
 
 @app.post("/api/add-user")
 async def add_user_api(user_data: AddUserRequest):
@@ -322,4 +327,4 @@ async def add_user_api(user_data: AddUserRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8800)
+    uvicorn.run(app, host="0.0.0.0", port=8000)
