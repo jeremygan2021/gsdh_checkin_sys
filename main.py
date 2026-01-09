@@ -11,11 +11,28 @@ import random
 import uuid
 import os
 import difflib
+from concurrent.futures import ProcessPoolExecutor
 from dotenv import load_dotenv
 
 load_dotenv()
 
 app = FastAPI()
+
+# 进程池全局变量
+process_pool = None
+
+@app.on_event("startup")
+async def startup_event():
+    global process_pool
+    # RK3588 有 8 个核心，预留一些给数据库和系统，使用 6 个核心进行计算
+    process_pool = ProcessPoolExecutor(max_workers=6)
+    print("ProcessPoolExecutor initialized with 6 workers")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    if process_pool:
+        process_pool.shutdown()
+        print("ProcessPoolExecutor shutdown")
 
 # Database connection parameters
 DB_CONFIG = {
@@ -25,7 +42,6 @@ DB_CONFIG = {
     "password": os.getenv("DB_PASSWORD", "123gsdh"),
     "database": os.getenv("DB_NAME", "gsdh")
 }
-
 # 商业领域同义词库 (Business Thesaurus) - 用于解决模糊语义匹配
 BUSINESS_THESAURUS = {
     # 核心意图: [关联行业/关键词列表]
@@ -42,14 +58,21 @@ BUSINESS_THESAURUS = {
     "供应链": ["物流", "仓储", "采购", "原材料", "制造", "工厂", "代工", "OEM"],
     "人力": ["招聘", "猎头", "培训", "HR", "劳务", "派遣", "灵活用工"],
     
+    # 短视频与互联网专项扩展
+    "自媒体": ["抖音", "快手", "视频号", "小红书", "B站", "直播", "带货", "种草", "网红", "KOL", "KOC", "MCN", "内容创作", "剪辑", "拍摄", "流量", "完播率", "点赞", "评论", "转发", "DOU+", "投流", "橱窗", "小黄车", "团购", "同城号", "剧情号", "知识号", "颜值号", "三农号"],
+    "互联网": ["电商", "平台", "流量", "运营", "产品", "用户增长", "裂变", "留存", "转化", "GMV", "DAU", "MAU", "PV", "UV", "SEO", "SEM", "ASO", "投放", "拉新", "促活", "留存", "变现", "闭环", "私域", "公域", "矩阵", "账号", "内容", "社群", "小程序", "H5", "Web", "App", "iOS", "Android", "中台", "SaaS", "PaaS", "IaaS", "云原生", "微服务", "低代码", "零代码", "敏捷", "DevOps", "CI/CD"],
+    "电商": ["购物", "订单", "支付", "物流", "仓储", "采购", "原材料", "制造", "工厂", "代工", "OEM"],
     # AI 行业专项扩展
-    "AI": ["大模型", "算法", "算力", "芯片", "数据", "数字人", "机器人", "智能", "自动化", "Agent", "RAG", "AIGC"],
+    "AI": ["大模型", "算法", "算力", "芯片", "数据", "数字人", "机器人", "智能", "自动化", "Agent", "RAG", "AIGC", "智能体"],
+    "智能体": ["Agent", "Copilot", "数字员工", "LangChain", "LlamaIndex", "AutoGPT", "Coze", "Dify", "扣子", "工作流", "Workflow", "编排", "RAG", "知识库", "向量", "Embedding", "工具调用", "Function Call", "多智能体", "Multi-Agent", "Swarm", "CrewAI", "AutoGen"],
     "大模型": ["OpenAI", "GPT", "文心", "通义", "Llama", "微调", "训练", "部署", "推理", "Token", "向量", "Prompt", "提示词"],
     "算力": ["GPU", "显卡", "英伟达", "H800", "4090", "服务器", "云计算", "智算中心", "租赁", "托管"],
     "芯片": ["半导体", "集成电路", "英伟达", "华为昇腾", "寒武纪", "FPGA", "ASIC"],
     "数据": ["标注", "清洗", "采集", "语料", "数据集", "版权", "向量数据库"],
     "数字人": ["直播", "短视频", "IP", "形象", "克隆", "配音", "虚拟人", "元宇宙"],
-    "具身智能": ["机器人", "机械臂", "无人机", "自动驾驶", "传感器", "视觉", "雷达", "端侧模型"]
+    "具身智能": ["机器人", "机械臂", "无人机", "自动驾驶", "传感器", "视觉", "雷达", "端侧模型"],
+    "AIGC": ["生成式AI", "文本生成", "图像生成", "视频生成", "音乐生成", "代码生成"],
+    "AI短剧": ["短剧", "视频", "内容创作", "剪辑", "拍摄", "流量", "完播率", "点赞", "评论", "转发"]
 }
 
 def compute_expert_score(text_a: str, text_b: str) -> float:
@@ -102,6 +125,66 @@ def compute_expert_score(text_a: str, text_b: str) -> float:
     # total = 0.6 -> 属于高匹配
     return min(base_score + semantic_boost, 1.0)
 
+def calculate_matches_task(user_industry: str, user_vision: str, others: List[Dict]) -> Dict:
+    """
+    CPU 密集型匹配任务，将在子进程中运行。
+    """
+    matches = {
+        "customers": [], # My Industry vs Their Vision
+        "partners": [],  # My Vision vs Their Industry
+        "peers": []      # My Industry vs Their Industry
+    }
+
+    for other in others:
+        # Handle potential None values safely
+        other_ind_comp = other.get('industry_company') or ''
+        other_bus_scope = other.get('business_scope') or ''
+        other_industry = f"{other_ind_comp} {other_bus_scope}".strip()
+        other_vision = other.get('vision_2026') or ""
+        
+        # 3.1 Customers (They need me)
+        # My Industry (Supply) matches Their Vision (Demand)
+        if user_industry and other_vision:
+            score = compute_expert_score(user_industry, other_vision)
+            if score > 0.15:
+                matches["customers"].append({**other, "score": score})
+
+        # 3.2 Partners (I need them)
+        # My Vision (Demand) matches Their Industry (Supply)
+        if user_vision and other_industry:
+            score = compute_expert_score(user_vision, other_industry)
+            if score > 0.15:
+                matches["partners"].append({**other, "score": score})
+
+        # 3.3 Peers (Same industry)
+        # My Industry matches Their Industry
+        if user_industry and other_industry:
+            score = compute_expert_score(user_industry, other_industry)
+            if score > 0.2:
+                matches["peers"].append({**other, "score": score})
+
+    # 4. Sort and Limit
+    for key in matches:
+        matches[key].sort(key=lambda x: x["score"], reverse=True)
+        
+        # Limit to top 5 per category
+        matches[key] = matches[key][:5]
+        
+        # Hide sensitive info
+        for p in matches[key]:
+            # Safe phone masking
+            p_phone = p.get('phone', '')
+            if len(p_phone) >= 7:
+                p['phone'] = p_phone[:3] + "****" + p_phone[-4:]
+            else:
+                p['phone'] = "****"
+            
+            p['location'] = "???" # Hidden location
+            p['unlocked'] = False
+            
+    return matches
+
+
 # Initialize Connection Pool
 try:
     postgreSQL_pool = psycopg2.pool.ThreadedConnectionPool(1, 20, **DB_CONFIG)
@@ -132,20 +215,34 @@ class AddUserRequest(BaseModel):
     payment_channel: Optional[str] = None
 
 def get_db_connection():
-    try:
-        conn = postgreSQL_pool.getconn()
+    max_retries = 5
+    for attempt in range(max_retries):
+        conn = None
         try:
-            with conn.cursor() as cur:
-                cur.execute('SELECT 1')
-            return conn
-        except (psycopg2.OperationalError, psycopg2.InterfaceError):
-            # Connection is dead, remove it from pool and create a new one
-            postgreSQL_pool.putconn(conn, close=True)
-            return postgreSQL_pool.getconn()
-    except Exception as e:
-        # If pool is exhausted or DB is down
-        print(f"Error getting DB connection: {e}")
-        raise e
+            conn = postgreSQL_pool.getconn()
+            if conn.closed:
+                # Should not happen with getconn() usually, but just in case
+                postgreSQL_pool.putconn(conn, close=True)
+                continue
+                
+            try:
+                with conn.cursor() as cur:
+                    cur.execute('SELECT 1')
+                return conn
+            except (psycopg2.OperationalError, psycopg2.InterfaceError, psycopg2.DatabaseError):
+                # Connection is dead, remove it from pool
+                if conn:
+                    postgreSQL_pool.putconn(conn, close=True)
+                # Loop will continue to get next connection
+                continue
+        except Exception as e:
+            if conn:
+                postgreSQL_pool.putconn(conn, close=True)
+            print(f"Error getting DB connection (attempt {attempt+1}): {e}")
+            if attempt == max_retries - 1:
+                raise e
+            
+    raise Exception("Failed to get a valid database connection after retries")
 
 def release_db_connection(conn):
     if conn:
@@ -294,21 +391,21 @@ def get_tablemates(cur, location: str, exclude_id: str, user_vision: str = "", u
             sim = compute_expert_score(user_vision, cand_vision)
             # Weight this score
             cand["score"] += sim * 1.0
-            if sim > 0.3: # Threshold for "similarity"
+            if sim > 0.25: # Threshold for "similarity" (Adjusted to 0.25 for better precision)
                 cand["match_type"].append("志同道合 (愿景相似)")
 
         # 2. Cross Match: My Industry matches Their Vision (I can help them)
         if user_industry and cand_vision:
              sim = compute_expert_score(user_industry, cand_vision)
              cand["score"] += sim * 1.5 # Give higher weight to potential business match
-             if sim > 0.3:
+             if sim > 0.25:
                  cand["match_type"].append("潜在合作 (您的行业匹配对方愿景)")
         
         # 3. Cross Match: Their Industry matches My Vision (They can help me)
         if user_vision and cand_industry:
              sim = compute_expert_score(user_vision, cand_industry)
              cand["score"] += sim * 1.5
-             if sim > 0.3:
+             if sim > 0.25:
                  cand["match_type"].append("潜在贵人 (对方行业匹配您的愿景)")
 
     # Sort by score descending
@@ -358,7 +455,6 @@ def resource_match(req: ResourceMatchRequest):
 
         # 1. Fetch current user
         # Optimize: Only fetch necessary fields
-        # Points are now in checkin_info
         cur.execute("""
             SELECT gd.new_id, gd.name, gd.phone, ci.social_point as points, 
                    gd.industry_company, ci.business_scope, ci.vision_2026
@@ -392,68 +488,14 @@ def resource_match(req: ResourceMatchRequest):
         cur.close()
         release_db_connection(conn)
 
-        # 3. Calculate Matches (In-Memory Python)
-        # difflib.SequenceMatcher is O(N*M), running it 3 times for every user is expensive.
-        # We can optimize by pre-calculating and caching, or just doing it efficiently.
-        
-        matches = {
-            "customers": [], # My Industry vs Their Vision
-            "partners": [],  # My Vision vs Their Industry
-            "peers": []      # My Industry vs Their Industry
-        }
-
-        # Optimization: Pre-compile SequenceMatcher objects if possible, but ratio() needs both strings.
-        # We use a threshold to quickly filter obvious non-matches if we had embeddings.
-        # For now, we stick to string matching but handle None values gracefully.
-
-        for other in others:
-            # Handle potential None values safely
-            other_ind_comp = other.get('industry_company') or ''
-            other_bus_scope = other.get('business_scope') or ''
-            other_industry = f"{other_ind_comp} {other_bus_scope}".strip()
-            other_vision = other.get('vision_2026') or ""
-            
-            # 3.1 Customers (They need me)
-            # My Industry (Supply) matches Their Vision (Demand)
-            if user_industry and other_vision:
-                # Quick length check optimization: if length difference is huge, ratio will be low
-                score = compute_expert_score(user_industry, other_vision)
-                if score > 0.2:
-                    matches["customers"].append({**other, "score": score})
-
-            # 3.2 Partners (I need them)
-            # My Vision (Demand) matches Their Industry (Supply)
-            if user_vision and other_industry:
-                score = compute_expert_score(user_vision, other_industry)
-                if score > 0.2:
-                    matches["partners"].append({**other, "score": score})
-
-            # 3.3 Peers (Same industry)
-            # My Industry matches Their Industry
-            if user_industry and other_industry:
-                score = compute_expert_score(user_industry, other_industry)
-                if score > 0.3:
-                    matches["peers"].append({**other, "score": score})
-
-        # 4. Sort and Limit
-        for key in matches:
-            matches[key].sort(key=lambda x: x["score"], reverse=True)
-            # Limit to top 20 for display performance
-            matches[key] = matches[key][:20]
-            
-            # Hide sensitive info by default
-            for p in matches[key]:
-                # Safe phone masking
-                p_phone = p.get('phone', '')
-                if len(p_phone) >= 7:
-                    p['phone'] = p_phone[:3] + "****" + p_phone[-4:]
-                else:
-                    p['phone'] = "****"
-                
-                p['location'] = "???" # Hidden location
-                p['unlocked'] = False
-                # Clean up internal fields to reduce JSON size
-                # p.pop('new_id', None) 
+        # 3. Calculate Matches (Using Process Pool for Concurrency)
+        # 将 CPU 密集型计算提交给进程池，避免阻塞主进程和 GIL 锁竞争
+        if process_pool:
+            future = process_pool.submit(calculate_matches_task, user_industry, user_vision, others)
+            matches = future.result() # Wait for result (blocks this thread, but not the whole server)
+        else:
+            # Fallback if pool not initialized
+            matches = calculate_matches_task(user_industry, user_vision, others)
 
         return {
             "success": True, 
@@ -480,7 +522,6 @@ def unlock_contact(req: UnlockRequest):
         cur = conn.cursor(cursor_factory=RealDictCursor)
         
         # 1. Check User Points
-        # Points are now in checkin_info, queried by gsdh_id (which we can get from phone via gsdh_data join)
         cur.execute("""
             SELECT ci.social_point as points 
             FROM checkin_info ci
