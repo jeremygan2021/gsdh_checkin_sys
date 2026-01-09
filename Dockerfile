@@ -1,8 +1,11 @@
-# 使用官方 Python 3.9 slim 镜像作为基础镜像
-FROM python:3.9-slim
+# 使用国内镜像源（DaoCloud 公益镜像）作为基础镜像
+FROM swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/python:3.9-slim
 
 # 设置工作目录
 WORKDIR /app
+
+# 设置 pip 国内镜像源（清华源）
+RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
 
 # 设置环境变量
 # 防止 Python 生成 .pyc 文件
