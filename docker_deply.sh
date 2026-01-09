@@ -36,10 +36,10 @@ TAR_FILE="${IMAGE_NAME}-${IMAGE_TAG}.tar"  # 压缩包文件名
 PLATFORM="linux/amd64"                # 默认架构
 ARCH_SUFFIX=""                         # 架构后缀，用于区分不同架构的tar文件
 # 默认使用华为云源 (AMD64速度快)
-BASE_IMAGE="swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/python:3.9-slim"
-if [ "$PLATFORM" = "linux/arm64" ]; then
-    BASE_IMAGE="docker.m.daocloud.io/python:3.9-slim"
-fi
+# BASE_IMAGE="swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/python:3.9-slim"
+# if [ "$PLATFORM" = "linux/arm64" ]; then
+#     BASE_IMAGE="docker.m.daocloud.io/python:3.9-slim"
+# fi
 # 颜色输出
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -128,7 +128,7 @@ build_image() {
     fi
     
     # 构建镜像并导出为tar文件
-    docker buildx build --platform $PLATFORM --build-arg BASE_IMAGE="${BASE_IMAGE}" -t "${IMAGE_NAME}:${IMAGE_TAG}" --output type=docker,dest="./${TAR_FILE}" .
+    docker buildx build --platform $PLATFORM -t "${IMAGE_NAME}:${IMAGE_TAG}" --output type=docker,dest="./${TAR_FILE}" .
     
     if [ $? -eq 0 ]; then
         log_success "Docker 镜像构建完成: ${TAR_FILE}"
@@ -192,8 +192,12 @@ deploy_on_server() {
         
         # 创建并使用.env文件中的变量
         echo "[INFO] 启动新容器..."
-        sudo docker run -d -p ${LOCAL_PORT}:${CONTAINER_PORT} --name ${CONTAINER_NAME} \
+        # 使用 host 网络模式，让容器直接使用宿主机网络栈，从而可以通过 localhost:5432 访问宿主机数据库
+        # 同时覆盖环境变量，强制使用本地数据库配置
+        sudo docker run -d --network host --name ${CONTAINER_NAME} \
             --env-file /tmp/.env \
+            -e DB_HOST=localhost \
+            -e DB_PORT=5432 \
             ${IMAGE_NAME}:${IMAGE_TAG}
         
         # 验证容器是否启动成功

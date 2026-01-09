@@ -36,8 +36,10 @@ async def shutdown_event():
 
 # Database connection parameters
 DB_CONFIG = {
-    "host": os.getenv("DB_HOST", "121.43.104.161"),
-    "port": os.getenv("DB_PORT", "6432"),
+    "host": os.getenv("DB_HOST", "localhost"),
+    "port": os.getenv("DB_PORT", "5432"),
+    # "host": os.getenv("DB_HOST", "121.43.104.161"),
+    # "port": os.getenv("DB_PORT", "6432"),
     "user": os.getenv("DB_USER", "gsdh"),
     "password": os.getenv("DB_PASSWORD", "123gsdh"),
     "database": os.getenv("DB_NAME", "gsdh")
