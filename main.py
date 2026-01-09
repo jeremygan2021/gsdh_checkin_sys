@@ -9,6 +9,7 @@ from typing import Optional, List, Dict
 import random
 import uuid
 import os
+import difflib
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -54,36 +55,42 @@ def assign_seat(cur, user_industry: str) -> str:
     """
     Allocate a seat based on:
     1. Even distribution (11 tables, max 12 per table)
+       - Prioritize filling empty tables first (min count)
+       - If counts are equal, fill sequentially (Table 1 before Table 2)
     2. Mix industries (try to put user in a table where their industry is least represented)
+       - Uses natural language similarity to judge industry overlap
     """
     TOTAL_TABLES = 11
     MAX_PER_TABLE = 12
     
     # Initialize table stats
-    # tables = { 1: {'count': 0, 'industries': []}, ... }
     tables = {i: {'count': 0, 'industries': []} for i in range(1, TOTAL_TABLES + 1)}
     
     # Fetch current seating status
-    # We join checkin_info with gsdh_data to get industries of people ALREADY SEATED
+    # Uses aggregation for efficiency as requested
+    # We use array_agg to collect industries for the diversity check in one query
     query = """
-    SELECT ci.location, gd.industry_company 
+    SELECT ci.location, COUNT(ci.gsdh_id), array_agg(gd.industry_company)
     FROM checkin_info ci 
-    JOIN gsdh_data gd ON ci.gsdh_id = gd.new_id 
+    LEFT JOIN gsdh_data gd ON ci.gsdh_id = gd.new_id 
     WHERE ci.location IS NOT NULL AND ci.location LIKE '第%桌'
+    GROUP BY ci.location
     """
     cur.execute(query)
     rows = cur.fetchall()
     
     for row in rows:
-        loc = row[0] # e.g. "第1桌"
-        ind = row[1]
+        loc = row[0]
+        count = row[1]
+        industries = row[2] if row[2] else []
+        
         try:
             # Extract table number
             table_num = int(loc.replace("第", "").replace("桌", ""))
             if 1 <= table_num <= TOTAL_TABLES:
-                tables[table_num]['count'] += 1
-                if ind:
-                    tables[table_num]['industries'].append(ind)
+                tables[table_num]['count'] = count
+                # Filter out None values from industries
+                tables[table_num]['industries'] = [ind for ind in industries if ind]
         except ValueError:
             continue
             
@@ -93,33 +100,39 @@ def assign_seat(cur, user_industry: str) -> str:
     if not available_tables:
         return "自由席" # Fallback if all full
         
-    # Strategy 1: Find tables with Minimum Count (Even Distribution)
+    # Strategy 1: Find tables with Minimum Count
+    # This automatically handles "Prioritize filling TOTAL_TABLES" because empty tables have count 0
     min_count = min(t[1]['count'] for t in available_tables)
-    candidates_step1 = [t for t in available_tables if t[1]['count'] == min_count]
+    candidates = [t for t in available_tables if t[1]['count'] == min_count]
     
-    # Strategy 2: Among candidates, find best for diversity
-    # We want a table where user_industry is NOT present, or present least often
-    best_table = None
+    # Sort by table number to ensure sequential filling if counts are equal (Requirement: 顺序分配)
+    candidates.sort(key=lambda x: x[0])
     
-    # If user has no industry info, just pick random from candidates
+    # Strategy 2: Optimize for Industry Diversity
     if not user_industry:
-        best_table = random.choice(candidates_step1)[0]
+        # If no industry info, just pick the first one (Sequential)
+        best_table = candidates[0][0]
     else:
-        # Score candidates: lower score is better (score = count of this industry in that table)
+        # Calculate similarity scores
+        # Score = sum of similarity with existing users
+        # Lower score is better (more unique)
         scored_candidates = []
-        for table_id, stats in candidates_step1:
-            # Simple fuzzy check: count how many times user_industry appears in stats['industries']
-            # We use simple string containment
-            industry_count = sum(1 for existing_ind in stats['industries'] if existing_ind and user_industry in existing_ind)
-            scored_candidates.append((table_id, industry_count))
         
-        # Sort by industry count (asc)
-        scored_candidates.sort(key=lambda x: x[1])
+        for table_id, stats in candidates:
+            total_similarity = 0.0
+            for existing_ind in stats['industries']:
+                if existing_ind:
+                    # Use difflib for fuzzy matching (0.0 to 1.0)
+                    # This helps understand "Natural Language" industries better than exact match
+                    sim = difflib.SequenceMatcher(None, user_industry, existing_ind).ratio()
+                    total_similarity += sim
+            
+            scored_candidates.append((table_id, total_similarity))
         
-        # Pick the one with least collision
-        min_collision = scored_candidates[0][1]
-        final_candidates = [x[0] for x in scored_candidates if x[1] == min_collision]
-        best_table = random.choice(final_candidates)
+        # Sort by similarity score (asc), then by table_id (asc)
+        scored_candidates.sort(key=lambda x: (x[1], x[0]))
+        
+        best_table = scored_candidates[0][0]
         
     return f"第{best_table}桌"
 

@@ -37,7 +37,9 @@ PLATFORM="linux/amd64"                # 默认架构
 ARCH_SUFFIX=""                         # 架构后缀，用于区分不同架构的tar文件
 # 默认使用华为云源 (AMD64速度快)
 BASE_IMAGE="swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/python:3.9-slim"
-
+if [ "$PLATFORM" = "linux/arm64" ]; then
+    BASE_IMAGE="docker.m.daocloud.io/python:3.9-slim"
+fi
 # 颜色输出
 RED='\033[0;31m'
 GREEN='\033[0;32m'

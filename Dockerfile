@@ -2,7 +2,7 @@
 # 接收构建参数 BASE_IMAGE，由 docker_deply.sh 传入
 ARG BASE_IMAGE=python:3.9-slim
 FROM ${BASE_IMAGE}
-
+# FROM docker.m.daocloud.io/python:3.9-slim
 
 # 设置工作目录
 WORKDIR /app
