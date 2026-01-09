@@ -53,10 +53,10 @@ def get_db_connection():
 def assign_seat(cur, user_industry: str) -> str:
     """
     Allocate a seat based on:
-    1. Even distribution (13 tables, max 12 per table)
+    1. Even distribution (11 tables, max 12 per table)
     2. Mix industries (try to put user in a table where their industry is least represented)
     """
-    TOTAL_TABLES = 13
+    TOTAL_TABLES = 11
     MAX_PER_TABLE = 12
     
     # Initialize table stats

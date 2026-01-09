@@ -442,6 +442,27 @@
             line-height: 1.5;
         }
 
+        .important-warning {
+            color: #ff3333 !important;
+            font-size: 1.3rem !important;
+            font-weight: 900 !important;
+            margin-top: 20px;
+            text-align: center;
+            background: rgba(255, 0, 0, 0.2) !important;
+            padding: 25px !important;
+            border-radius: 12px !important;
+            border: 2px solid #ff0000 !important;
+            box-shadow: 0 0 20px rgba(255, 0, 0, 0.4) !important;
+            animation: pulse-red 2s infinite;
+            text-shadow: 0 0 5px rgba(0,0,0,0.5);
+        }
+
+        @keyframes pulse-red {
+            0% { box-shadow: 0 0 0 0 rgba(255, 0, 0, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(255, 0, 0, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 0, 0, 0); }
+        }
+
     </style>
 </head>
 <body>
@@ -616,6 +637,7 @@
 
             // Reset UI
             errorDiv.classList.add('hidden');
+            errorDiv.classList.remove('important-warning');
             listDiv.classList.add('hidden');
             listDiv.innerHTML = '';
             btn.disabled = true;
@@ -671,6 +693,16 @@
         }
 
         function selectUser(user) {
+            // Check if fee is 0 (unpaid)
+            if (user.fee == 0) {
+                const errorDiv = document.getElementById('search-error');
+                errorDiv.textContent = "⚠️ 无法签到：请先前往签到处付费26元";
+                errorDiv.classList.remove('hidden');
+                errorDiv.classList.add('important-warning');
+                errorDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return;
+            }
+
             currentUser = user;
             
             // Populate form
