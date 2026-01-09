@@ -4,6 +4,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
 import psycopg2
+from psycopg2 import pool
 from psycopg2.extras import RealDictCursor
 from typing import Optional, List, Dict
 import random
@@ -24,6 +25,89 @@ DB_CONFIG = {
     "password": os.getenv("DB_PASSWORD", "123gsdh"),
     "database": os.getenv("DB_NAME", "gsdh")
 }
+
+# 商业领域同义词库 (Business Thesaurus) - 用于解决模糊语义匹配
+BUSINESS_THESAURUS = {
+    # 核心意图: [关联行业/关键词列表]
+    "上市": ["IPO", "证券", "股票", "股份", "路演", "投行", "辅导", "财报", "合规", "董秘", "财务顾问", "审计", "律所", "金融", "机构"],
+    "证券": ["上市", "交易", "股票", "投资", "金融", "资本", "券商", "投行"],
+    "融资": ["找钱", "搞钱", "资金", "投资", "VC", "PE", "天使", "风投", "路演", "BP", "基金", "银行", "贷款"],
+    "资金": ["融资", "投资", "银行", "贷款", "过桥", "保理", "供应链金融"],
+    "获客": ["销售", "渠道", "推广", "流量", "代理", "分销", "增长", "营销", "广告", "传媒", "品牌", "私域"],
+    "销售": ["获客", "渠道", "代理", "分销", "带货", "电商", "直播"],
+    "技术": ["研发", "代码", "程序", "系统", "平台", "App", "小程序", "AI", "智能", "软件", "SaaS", "数字化", "算法", "架构"],
+    "法律": ["合规", "律师", "法务", "合同", "知识产权", "维权", "纠纷", "仲裁", "数据合规"],
+    "财税": ["会计", "审计", "报税", "记账", "财务", "税务", "节税"],
+    "出海": ["跨境", "外贸", "物流", "海外", "国际", "通关", "Tiktok", "多语言", "本地化"],
+    "供应链": ["物流", "仓储", "采购", "原材料", "制造", "工厂", "代工", "OEM"],
+    "人力": ["招聘", "猎头", "培训", "HR", "劳务", "派遣", "灵活用工"],
+    
+    # AI 行业专项扩展
+    "AI": ["大模型", "算法", "算力", "芯片", "数据", "数字人", "机器人", "智能", "自动化", "Agent", "RAG", "AIGC"],
+    "大模型": ["OpenAI", "GPT", "文心", "通义", "Llama", "微调", "训练", "部署", "推理", "Token", "向量", "Prompt", "提示词"],
+    "算力": ["GPU", "显卡", "英伟达", "H800", "4090", "服务器", "云计算", "智算中心", "租赁", "托管"],
+    "芯片": ["半导体", "集成电路", "英伟达", "华为昇腾", "寒武纪", "FPGA", "ASIC"],
+    "数据": ["标注", "清洗", "采集", "语料", "数据集", "版权", "向量数据库"],
+    "数字人": ["直播", "短视频", "IP", "形象", "克隆", "配音", "虚拟人", "元宇宙"],
+    "具身智能": ["机器人", "机械臂", "无人机", "自动驾驶", "传感器", "视觉", "雷达", "端侧模型"]
+}
+
+def compute_expert_score(text_a: str, text_b: str) -> float:
+    """
+    计算两个文本的匹配度，结合了字符相似度和专家规则语义匹配。
+    """
+    if not text_a or not text_b:
+        return 0.0
+    
+    # 1. 基础字符相似度 (Base Character Similarity)
+    # difflib 计算最长公共子序列，处理 "软件开发" vs "软件工程" 这种字面相似
+    base_score = difflib.SequenceMatcher(None, text_a, text_b).ratio()
+    
+    # 2. 语义增强 (Semantic Boost)
+    # 通过同义词库建立 "上市" <-> "证券" 这种非字面联系
+    semantic_boost = 0.0
+    
+    # 归一化处理
+    str_a = str(text_a).strip()
+    str_b = str(text_b).strip()
+    
+    found_match = False
+    
+    # 检查 A 中的关键词是否匹配 B 中的关联词
+    for key, related_words in BUSINESS_THESAURUS.items():
+        if key in str_a:
+            # 如果 A 包含 "上市"，检查 B 是否包含 ["证券", "投行"...]
+            for word in related_words:
+                if word in str_b:
+                    semantic_boost = 0.6 # 给予显著加分
+                    found_match = True
+                    break
+        if found_match: break
+        
+    # 双向检查：检查 B 中的关键词是否匹配 A 中的关联词
+    if not found_match:
+         for key, related_words in BUSINESS_THESAURUS.items():
+            if key in str_b:
+                for word in related_words:
+                    if word in str_a:
+                        semantic_boost = 0.6
+                        found_match = True
+                        break
+            if found_match: break
+            
+    # 最终分数：基础分 + 语义分，上限 1.0
+    # 这样 "尽快上市" (A) vs "证券行业" (B):
+    # base_score ≈ 0
+    # semantic_boost = 0.6 (因为 "上市" -> "证券")
+    # total = 0.6 -> 属于高匹配
+    return min(base_score + semantic_boost, 1.0)
+
+# Initialize Connection Pool
+try:
+    postgreSQL_pool = psycopg2.pool.ThreadedConnectionPool(1, 20, **DB_CONFIG)
+    print("PostgreSQL connection pool created successfully")
+except (Exception, psycopg2.DatabaseError) as error:
+    print("Error while connecting to PostgreSQL", error)
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -48,8 +132,24 @@ class AddUserRequest(BaseModel):
     payment_channel: Optional[str] = None
 
 def get_db_connection():
-    conn = psycopg2.connect(**DB_CONFIG)
-    return conn
+    try:
+        conn = postgreSQL_pool.getconn()
+        try:
+            with conn.cursor() as cur:
+                cur.execute('SELECT 1')
+            return conn
+        except (psycopg2.OperationalError, psycopg2.InterfaceError):
+            # Connection is dead, remove it from pool and create a new one
+            postgreSQL_pool.putconn(conn, close=True)
+            return postgreSQL_pool.getconn()
+    except Exception as e:
+        # If pool is exhausted or DB is down
+        print(f"Error getting DB connection: {e}")
+        raise e
+
+def release_db_connection(conn):
+    if conn:
+        postgreSQL_pool.putconn(conn)
 
 def assign_seat(cur, user_industry: str) -> str:
     """
@@ -69,8 +169,15 @@ def assign_seat(cur, user_industry: str) -> str:
     # Fetch current seating status
     # Uses aggregation for efficiency as requested
     # We use array_agg to collect industries for the diversity check in one query
+    # Update: Include business_scope from checkin_info for more detailed matching
+    # We concatenate industry_company (from gsdh_data) and business_scope (from checkin_info)
     query = """
-    SELECT ci.location, COUNT(ci.gsdh_id), array_agg(gd.industry_company)
+    SELECT 
+        ci.location, 
+        COUNT(ci.gsdh_id), 
+        array_agg(
+            COALESCE(gd.industry_company, '') || ' ' || COALESCE(ci.business_scope, '')
+        )
     FROM checkin_info ci 
     LEFT JOIN gsdh_data gd ON ci.gsdh_id = gd.new_id 
     WHERE ci.location IS NOT NULL AND ci.location LIKE '第%桌'
@@ -122,9 +229,9 @@ def assign_seat(cur, user_industry: str) -> str:
             total_similarity = 0.0
             for existing_ind in stats['industries']:
                 if existing_ind:
-                    # Use difflib for fuzzy matching (0.0 to 1.0)
+                    # Use Expert Score for better semantic matching
                     # This helps understand "Natural Language" industries better than exact match
-                    sim = difflib.SequenceMatcher(None, user_industry, existing_ind).ratio()
+                    sim = compute_expert_score(user_industry, existing_ind)
                     total_similarity += sim
             
             scored_candidates.append((table_id, total_similarity))
@@ -136,9 +243,11 @@ def assign_seat(cur, user_industry: str) -> str:
         
     return f"第{best_table}桌"
 
-def get_tablemates(cur, location: str, exclude_id: str) -> List[Dict]:
+def get_tablemates(cur, location: str, exclude_id: str, user_vision: str = "", user_industry: str = "") -> List[Dict]:
     """
-    Get up to 3 random tablemates from the same table location.
+    Get 3 tablemates based on:
+    1. Vision similarity: Match tablemate's vision_2026 with user's vision_2026 (Find similar goals)
+    2. Supply-Demand match: Match tablemate's vision_2026 with user's industry (Find potential partners)
     """
     if not location or location == "自由席":
         return []
@@ -146,41 +255,289 @@ def get_tablemates(cur, location: str, exclude_id: str) -> List[Dict]:
     # Debug: Check who is at this location
     print(f"DEBUG: Fetching tablemates for location: '{location}', excluding: '{exclude_id}'")
     
-    # Important: Ensure the location string format matches database exactly
-    # Database seems to store "第X桌", ensuring consistent querying
-    
     # Updated query to fetch more details from checkin_info
     query = """
     SELECT ci.name, gd.industry_company, ci.company_name, ci.position, ci.business_scope, ci.vision_2026
     FROM checkin_info ci
     LEFT JOIN gsdh_data gd ON ci.gsdh_id = gd.new_id
     WHERE ci.location = %s AND ci.gsdh_id != %s
-    ORDER BY RANDOM()
-    LIMIT 3
     """
     cur.execute(query, (location, exclude_id))
     rows = cur.fetchall()
     
-    print(f"DEBUG: Found {len(rows)} tablemates")
+    print(f"DEBUG: Found {len(rows)} potential tablemates")
     
-    tablemates = []
+    candidates = []
     for row in rows:
-        tablemates.append({
+        candidate = {
             "name": row[0],
             "industry": row[1] or "暂无行业信息",
             "company_name": row[2] or "暂无单位信息",
             "position": row[3] or "暂无职务信息",
             "business_scope": row[4] or "暂无业务信息",
-            "vision_2026": row[5] or "暂无愿景信息"
+            "vision_2026": row[5] or "",
+            "match_type": [],
+            "score": 0.0
+        }
+        candidates.append(candidate)
+
+    if not candidates:
+        return []
+
+    # Scoring Logic
+    for cand in candidates:
+        cand_vision = cand["vision_2026"]
+        cand_industry = cand["industry"]
+        
+        # 1. Vision Similarity (Find peers with similar goals)
+        if user_vision and cand_vision:
+            sim = compute_expert_score(user_vision, cand_vision)
+            # Weight this score
+            cand["score"] += sim * 1.0
+            if sim > 0.3: # Threshold for "similarity"
+                cand["match_type"].append("志同道合 (愿景相似)")
+
+        # 2. Cross Match: My Industry matches Their Vision (I can help them)
+        if user_industry and cand_vision:
+             sim = compute_expert_score(user_industry, cand_vision)
+             cand["score"] += sim * 1.5 # Give higher weight to potential business match
+             if sim > 0.3:
+                 cand["match_type"].append("潜在合作 (您的行业匹配对方愿景)")
+        
+        # 3. Cross Match: Their Industry matches My Vision (They can help me)
+        if user_vision and cand_industry:
+             sim = compute_expert_score(user_vision, cand_industry)
+             cand["score"] += sim * 1.5
+             if sim > 0.3:
+                 cand["match_type"].append("潜在贵人 (对方行业匹配您的愿景)")
+
+    # Sort by score descending
+    candidates.sort(key=lambda x: x["score"], reverse=True)
+    
+    # Take top 3
+    top_candidates = candidates[:3]
+    
+    # Format output
+    result = []
+    for cand in top_candidates:
+        # If no specific match type, just say "同桌伙伴"
+        match_reason = " | ".join(cand["match_type"]) if cand["match_type"] else "同桌伙伴"
+        
+        result.append({
+            "name": cand["name"],
+            "industry": cand["industry"],
+            "company_name": cand["company_name"],
+            "position": cand["position"],
+            "business_scope": cand["business_scope"],
+            "vision_2026": cand["vision_2026"] or "暂无愿景信息",
+            "match_reason": match_reason
         })
-    return tablemates
+        
+    return result
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
+class UnlockRequest(BaseModel):
+    my_phone: str
+    target_id: str
+
+class ResourceMatchRequest(BaseModel):
+    phone: str
+
+@app.get("/search", response_class=HTMLResponse)
+async def resource_match_page(request: Request):
+    return templates.TemplateResponse("resource_match.html", {"request": request})
+
+@app.post("/api/resource-match")
+def resource_match(req: ResourceMatchRequest):
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # 1. Fetch current user
+        # Optimize: Only fetch necessary fields
+        # Points are now in checkin_info
+        cur.execute("""
+            SELECT gd.new_id, gd.name, gd.phone, ci.social_point as points, 
+                   gd.industry_company, ci.business_scope, ci.vision_2026
+            FROM gsdh_data gd
+            LEFT JOIN checkin_info ci ON gd.new_id = ci.gsdh_id
+            WHERE gd.phone = %s
+        """, (req.phone,))
+        user = cur.fetchone()
+
+        if not user:
+            cur.close()
+            release_db_connection(conn)
+            return JSONResponse(content={"success": False, "message": "用户不存在"}, status_code=404)
+
+        user_industry = f"{user['industry_company'] or ''} {user['business_scope'] or ''}".strip()
+        user_vision = user['vision_2026'] or ""
+
+        # 2. Fetch ALL other users (who have checked in)
+        # Performance Note: Fetching all rows is slow if N is large.
+        # But for N < 1000 it's acceptable. For larger N, we need vector search (e.g. pgvector).
+        # We limit the fields to reduce payload size.
+        cur.execute("""
+            SELECT gd.new_id, gd.name, gd.phone, gd.industry_company, 
+                   ci.company_name, ci.position, ci.business_scope, ci.vision_2026, ci.location
+            FROM checkin_info ci
+            JOIN gsdh_data gd ON ci.gsdh_id = gd.new_id
+            WHERE gd.new_id != %s
+        """, (user['new_id'],))
+        others = cur.fetchall()
+
+        cur.close()
+        release_db_connection(conn)
+
+        # 3. Calculate Matches (In-Memory Python)
+        # difflib.SequenceMatcher is O(N*M), running it 3 times for every user is expensive.
+        # We can optimize by pre-calculating and caching, or just doing it efficiently.
+        
+        matches = {
+            "customers": [], # My Industry vs Their Vision
+            "partners": [],  # My Vision vs Their Industry
+            "peers": []      # My Industry vs Their Industry
+        }
+
+        # Optimization: Pre-compile SequenceMatcher objects if possible, but ratio() needs both strings.
+        # We use a threshold to quickly filter obvious non-matches if we had embeddings.
+        # For now, we stick to string matching but handle None values gracefully.
+
+        for other in others:
+            # Handle potential None values safely
+            other_ind_comp = other.get('industry_company') or ''
+            other_bus_scope = other.get('business_scope') or ''
+            other_industry = f"{other_ind_comp} {other_bus_scope}".strip()
+            other_vision = other.get('vision_2026') or ""
+            
+            # 3.1 Customers (They need me)
+            # My Industry (Supply) matches Their Vision (Demand)
+            if user_industry and other_vision:
+                # Quick length check optimization: if length difference is huge, ratio will be low
+                score = compute_expert_score(user_industry, other_vision)
+                if score > 0.2:
+                    matches["customers"].append({**other, "score": score})
+
+            # 3.2 Partners (I need them)
+            # My Vision (Demand) matches Their Industry (Supply)
+            if user_vision and other_industry:
+                score = compute_expert_score(user_vision, other_industry)
+                if score > 0.2:
+                    matches["partners"].append({**other, "score": score})
+
+            # 3.3 Peers (Same industry)
+            # My Industry matches Their Industry
+            if user_industry and other_industry:
+                score = compute_expert_score(user_industry, other_industry)
+                if score > 0.3:
+                    matches["peers"].append({**other, "score": score})
+
+        # 4. Sort and Limit
+        for key in matches:
+            matches[key].sort(key=lambda x: x["score"], reverse=True)
+            # Limit to top 20 for display performance
+            matches[key] = matches[key][:20]
+            
+            # Hide sensitive info by default
+            for p in matches[key]:
+                # Safe phone masking
+                p_phone = p.get('phone', '')
+                if len(p_phone) >= 7:
+                    p['phone'] = p_phone[:3] + "****" + p_phone[-4:]
+                else:
+                    p['phone'] = "****"
+                
+                p['location'] = "???" # Hidden location
+                p['unlocked'] = False
+                # Clean up internal fields to reduce JSON size
+                # p.pop('new_id', None) 
+
+        return {
+            "success": True, 
+            "user": {
+                "name": user['name'],
+                "industry_company": user['industry_company'],
+                "points": user['points'] if user['points'] is not None else 0,
+                "phone": user['phone']
+            },
+            "matches": matches
+        }
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        if 'conn' in locals() and conn:
+            release_db_connection(conn)
+        return JSONResponse(content={"success": False, "message": str(e)}, status_code=500)
+
+@app.post("/api/unlock-contact")
+def unlock_contact(req: UnlockRequest):
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        # 1. Check User Points
+        # Points are now in checkin_info, queried by gsdh_id (which we can get from phone via gsdh_data join)
+        cur.execute("""
+            SELECT ci.social_point as points 
+            FROM checkin_info ci
+            JOIN gsdh_data gd ON ci.gsdh_id = gd.new_id
+            WHERE gd.phone = %s
+        """, (req.my_phone,))
+        res = cur.fetchone()
+        
+        if not res:
+            cur.close()
+            release_db_connection(conn)
+            return JSONResponse(content={"success": False, "message": "用户未签到或不存在"}, status_code=404)
+        
+        points = res['points'] if res['points'] is not None else 0
+        if points <= 0:
+            cur.close()
+            release_db_connection(conn)
+            return JSONResponse(content={"success": False, "message": "积分不足"}, status_code=400)
+            
+        # 2. Deduct Point
+        # Update checkin_info using a subquery to map phone to gsdh_id
+        cur.execute("""
+            UPDATE checkin_info 
+            SET social_point = social_point - 1 
+            WHERE gsdh_id = (SELECT new_id FROM gsdh_data WHERE phone = %s)
+        """, (req.my_phone,))
+        
+        # 3. Fetch Target Info
+        cur.execute("""
+            SELECT gd.phone, ci.location 
+            FROM gsdh_data gd 
+            LEFT JOIN checkin_info ci ON gd.new_id = ci.gsdh_id
+            WHERE gd.new_id = %s
+        """, (req.target_id,))
+        target = cur.fetchone()
+        
+        conn.commit()
+        cur.close()
+        release_db_connection(conn)
+        
+        return {
+            "success": True,
+            "remaining_points": points - 1,
+            "contact": {
+                "phone": target['phone'],
+                "location": target['location'] or "未分配座位"
+            }
+        }
+
+    except Exception as e:
+        if 'conn' in locals() and conn:
+            conn.rollback()
+            release_db_connection(conn)
+        return JSONResponse(content={"success": False, "message": str(e)}, status_code=500)
+
 @app.get("/api/search")
-async def search_user(query: str):
+def search_user(query: str):
     """
     Search user by phone (exact match) or name (fuzzy match).
     """
@@ -200,21 +557,24 @@ async def search_user(query: str):
             users = cur.fetchall()
             
             if len(users) == 0:
-                conn.close()
+                cur.close()
+                release_db_connection(conn)
                 return JSONResponse(content={"found": False, "message": "未查询到相关信息，请检查输入是否正确"}, status_code=404)
             elif len(users) > 1:
                 # If multiple users found by name, return list for user to select (simplified here to return first or error)
                 # For this MVP, let's return all matching users so frontend can handle selection
-                conn.close()
+                cur.close()
+                release_db_connection(conn)
                 return JSONResponse(content={"found": True, "multiple": True, "users": users})
             else:
                 user = users[0]
         
         # Check if already signed
         if user.get('is_signed') == 'TRUE':
-             # If already signed, fetch their assigned seat and tablemates
-             cur.execute("SELECT location FROM checkin_info WHERE gsdh_id = %s", (user['new_id'],))
-             checkin_info = cur.fetchone()
+             # Check if already signed
+             cur.execute("SELECT location, vision_2026 FROM checkin_info WHERE gsdh_id = %s", (user['new_id'],))
+             checkin_info = cur.fetchone() # Fetch as RealDictRow
+             
              assigned_seat = checkin_info['location'] if checkin_info else "自由席"
              
              # Fetch tablemates
@@ -223,10 +583,17 @@ async def search_user(query: str):
              # We can adapt get_tablemates or just use key access if we pass the DictCursor
              # Let's create a fresh standard cursor to be safe and consistent with get_tablemates implementation
              cur_plain = conn.cursor() 
-             tablemates = get_tablemates(cur_plain, assigned_seat, user['new_id'])
+             
+             # Fetch user's vision and industry for matching
+             user_vision = checkin_info.get('vision_2026', '') if checkin_info else ''
+             # user['industry_company'] is already available in user dict
+             user_industry = user.get('industry_company', '')
+
+             tablemates = get_tablemates(cur_plain, assigned_seat, user['new_id'], user_vision, user_industry)
              cur_plain.close()
              
-             conn.close()
+             cur.close()
+             release_db_connection(conn)
              return JSONResponse(content={
                  "found": True, 
                  "user": user, 
@@ -235,14 +602,17 @@ async def search_user(query: str):
                  "tablemates": tablemates
              })
         
-        conn.close()
+        cur.close()
+        release_db_connection(conn)
         return JSONResponse(content={"found": True, "user": user, "already_signed": False})
 
     except Exception as e:
+        if 'conn' in locals() and conn:
+            release_db_connection(conn)
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 @app.post("/api/checkin")
-async def checkin_user(checkin_data: CheckinRequest):
+def checkin_user(checkin_data: CheckinRequest):
     try:
         conn = get_db_connection()
         cur = conn.cursor()
@@ -250,16 +620,20 @@ async def checkin_user(checkin_data: CheckinRequest):
         # 0. Get user's industry from gsdh_data to help with seat allocation
         cur.execute("SELECT industry_company FROM gsdh_data WHERE new_id = %s", (checkin_data.gsdh_id,))
         res = cur.fetchone()
-        user_industry = res[0] if res else ""
+        base_industry = res[0] if res and res[0] else ""
+        
+        # Combine base industry with the newly provided business_scope for better matching
+        user_industry_info = f"{base_industry} {checkin_data.business_scope or ''}".strip()
         
         # 1. Allocate Seat
-        assigned_seat = assign_seat(cur, user_industry)
+        assigned_seat = assign_seat(cur, user_industry_info)
         
         # 2. Insert into checkin_info with assigned seat
+        # Initialize social_point to 5
         insert_sql = """
         INSERT INTO checkin_info 
-        (name, phone, company_name, position, business_scope, vision_2026, location, gsdh_id)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        (name, phone, company_name, position, business_scope, vision_2026, location, gsdh_id, social_point)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 4)
         """
         cur.execute(insert_sql, (
             checkin_data.name,
@@ -279,16 +653,18 @@ async def checkin_user(checkin_data: CheckinRequest):
         conn.commit()
         
         # 4. Fetch tablemates for the newly assigned seat
-        tablemates = get_tablemates(cur, assigned_seat, checkin_data.gsdh_id)
+        # Use provided vision and industry for matching
+        tablemates = get_tablemates(cur, assigned_seat, checkin_data.gsdh_id, checkin_data.vision_2026 or "", user_industry_info)
         
         cur.close()
-        conn.close()
+        release_db_connection(conn)
         
         return {"success": True, "message": "签到成功！", "seat": assigned_seat, "tablemates": tablemates}
         
     except Exception as e:
-        if 'conn' in locals():
+        if 'conn' in locals() and conn:
             conn.rollback()
+            release_db_connection(conn)
         return JSONResponse(content={"success": False, "message": f"签到失败: {str(e)}"}, status_code=500)
 
 @app.get("/add-user", response_class=HTMLResponse)
@@ -298,7 +674,7 @@ async def add_user_page(request: Request):
     return templates.TemplateResponse("add_user.html", {"request": request, "secret": secret})
 
 @app.post("/api/add-user")
-async def add_user_api(user_data: AddUserRequest):
+def add_user_api(user_data: AddUserRequest):
     try:
         conn = get_db_connection()
         cur = conn.cursor()
@@ -306,7 +682,8 @@ async def add_user_api(user_data: AddUserRequest):
         # Check if phone already exists
         cur.execute("SELECT * FROM gsdh_data WHERE phone = %s", (user_data.phone,))
         if cur.fetchone():
-            conn.close()
+            cur.close()
+            release_db_connection(conn)
             return JSONResponse(content={"success": False, "message": "该手机号已存在"}, status_code=400)
             
         # Calculate next new_id
@@ -330,12 +707,13 @@ async def add_user_api(user_data: AddUserRequest):
         
         conn.commit()
         cur.close()
-        conn.close()
+        release_db_connection(conn)
         
         return {"success": True, "message": "添加成功", "new_id": new_id}
     except Exception as e:
-        if 'conn' in locals():
+        if 'conn' in locals() and conn:
             conn.rollback()
+            release_db_connection(conn)
         return JSONResponse(content={"success": False, "message": f"添加失败: {str(e)}"}, status_code=500)
 
 if __name__ == "__main__":

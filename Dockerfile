@@ -1,8 +1,10 @@
 # 使用 DaoCloud 国内镜像代理加速下载 (支持多架构)
 # 接收构建参数 BASE_IMAGE，由 docker_deply.sh 传入
-ARG BASE_IMAGE=python:3.9-slim
-FROM ${BASE_IMAGE}
-# FROM docker.m.daocloud.io/python:3.9-slim
+# ARG BASE_IMAGE=python:3.9-slim
+# FROM ${BASE_IMAGE}
+
+# arm64 架构镜像
+FROM docker.m.daocloud.io/python:3.9-slim
 
 # 设置工作目录
 WORKDIR /app
