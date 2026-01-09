@@ -35,6 +35,8 @@ TAR_FILE="${IMAGE_NAME}-${IMAGE_TAG}.tar"  # 压缩包文件名
 # 架构相关变量
 PLATFORM="linux/amd64"                # 默认架构
 ARCH_SUFFIX=""                         # 架构后缀，用于区分不同架构的tar文件
+# 默认使用华为云源 (AMD64速度快)
+BASE_IMAGE="swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/python:3.9-slim"
 
 # 颜色输出
 RED='\033[0;31m'
@@ -124,7 +126,7 @@ build_image() {
     fi
     
     # 构建镜像并导出为tar文件
-    docker buildx build --platform $PLATFORM -t "${IMAGE_NAME}:${IMAGE_TAG}" --output type=docker,dest="./${TAR_FILE}" .
+    docker buildx build --platform $PLATFORM --build-arg BASE_IMAGE="${BASE_IMAGE}" -t "${IMAGE_NAME}:${IMAGE_TAG}" --output type=docker,dest="./${TAR_FILE}" .
     
     if [ $? -eq 0 ]; then
         log_success "Docker 镜像构建完成: ${TAR_FILE}"

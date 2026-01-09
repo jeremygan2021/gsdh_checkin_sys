@@ -1,5 +1,8 @@
-# 使用国内镜像源（DaoCloud 公益镜像）作为基础镜像
-FROM swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/python:3.9-slim
+# 使用 DaoCloud 国内镜像代理加速下载 (支持多架构)
+# 接收构建参数 BASE_IMAGE，由 docker_deply.sh 传入
+ARG BASE_IMAGE=python:3.9-slim
+FROM ${BASE_IMAGE}
+
 
 # 设置工作目录
 WORKDIR /app

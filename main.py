@@ -327,4 +327,10 @@ async def add_user_api(user_data: AddUserRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8800)
+    import argparse
+
+    parser = argparse.ArgumentParser(description='Run the Checkin System.')
+    parser.add_argument('--port', type=int, default=8800, help='Port to run the server on')
+    args = parser.parse_args()
+
+    uvicorn.run(app, host="0.0.0.0", port=args.port)
