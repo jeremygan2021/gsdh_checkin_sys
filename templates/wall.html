@@ -43,7 +43,8 @@
             background-position: center;
             opacity: var(--bg-opacity);
             z-index: -3;
-            filter: blur(10px); /* Increased blur for cleaner look */
+            /* Dynamic blur: no blur if opacity is 1 */
+            filter: {{ 'none' if config.wall_config and config.wall_config.bg_opacity == 1 else 'blur(10px)' }};
         }
 
         /* Subtle overlay to ensure text contrast */
@@ -104,15 +105,15 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            width: 80px;
-            height: 100px;
+            width: 60px;
+            height: 60px; /* Reduced from 80px */
             transition: transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.5s ease;
             will-change: transform, left, top;
         }
 
         .bubble-avatar {
-            width: 60px;
-            height: 60px;
+            width: 100%; /* Fill container */
+            height: 100%; /* Fill container */
             border-radius: 50%;
             background: linear-gradient(135deg, var(--secondary-color), var(--primary-color));
             border: 2px solid rgba(255, 255, 255, 0.8);
@@ -120,11 +121,15 @@
             align-items: center;
             justify-content: center;
             font-weight: bold;
-            font-size: 1.2rem;
+            font-size: 0.9rem; /* Reduced font size */
             color: #fff;
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
-            margin-bottom: 5px;
+            margin-bottom: 0; /* Removed margin */
             overflow: hidden;
+            text-align: center;
+            padding: 2px;
+            line-height: 1.1;
+            word-break: break-all;
         }
         
         .bubble-avatar img {
@@ -236,13 +241,86 @@
             color: #aaa;
         }
 
+        /* Mobile Learn More Button */
+        .mobile-btn-container {
+            display: none;
+            position: absolute;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 30;
+            width: 80%;
+            text-align: center;
+        }
+
+        .learn-more-btn {
+            background: linear-gradient(90deg, var(--secondary-color), var(--primary-color));
+            color: white;
+            padding: 12px 30px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: bold;
+            box-shadow: 0 5px 20px rgba(0, 242, 255, 0.4);
+            display: inline-block;
+            transition: transform 0.3s;
+        }
+
+        .learn-more-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* Mobile Optimization */
+        @media (max-width: 768px) {
+            .mobile-btn-container {
+                display: block;
+            }
+            h1 {
+                font-size: 1.8rem;
+            }
+            .subtitle {
+                font-size: 0.8rem;
+                letter-spacing: 2px;
+            }
+            .spotlight-card {
+                padding: 20px;
+                width: 90%;
+            }
+            .company-name {
+                font-size: 1.5rem;
+            }
+            .user-info {
+                font-size: 1.2rem;
+                flex-direction: column;
+                gap: 5px;
+            }
+            .user-avatar-large {
+                width: 60px;
+                height: 60px;
+                font-size: 1.5rem;
+            }
+            #card-extra {
+                font-size: 1rem !important;
+            }
+            .stats-counter {
+                bottom: 10px;
+                right: 10px;
+                padding: 5px 10px;
+            }
+            .stats-number {
+                font-size: 1.5rem;
+            }
+        }
+
     </style>
 </head>
 <body>
+    {% set wc = config.wall_config if config.wall_config else {} %}
+    {% if wc.show_title != false %}
     <header>
         <div class="subtitle">{{ config.event_sub_title }}</div>
         <h1>{{ config.event_title }}</h1>
     </header>
+    {% endif %}
 
     <div class="bg-layer"></div>
     <div class="clean-overlay"></div>
@@ -276,6 +354,12 @@
         </div>
     </div>
 
+    {% if wc.learn_more_url %}
+    <div class="mobile-btn-container">
+        <a href="{{ wc.learn_more_url }}" class="learn-more-btn" target="_blank">了解我们</a>
+    </div>
+    {% endif %}
+
     <div class="stats-counter">
         <div class="stats-number" id="checkin-count">0</div>
         <div class="stats-label">已签到嘉宾</div>
@@ -285,8 +369,10 @@
         // --- Configuration ---
         const CONFIG = {
             gridThreshold: 20, // Switch to grid when users > 20
-            bubbleSize: 80,    // Width of bubble
-            bubbleHeight: 100, // Height of bubble (including name)
+            maxDisplay: 30,    // Maximum bubbles to display at once
+            rotationInterval: 10000, // Rotation interval in ms (10s)
+            bubbleSize: 60,    // Width of bubble
+            bubbleHeight: 60,  // Height of bubble
             speed: 1.5,        // Floating speed
         };
 
@@ -294,9 +380,12 @@
         const SHOW_SCOPE = {{ 'true' if show.business_scope != false else 'false' }};
 
         // --- State ---
-        let users = [];
+        let allUsers = []; // All fetched users
+        let displayedUsers = []; // Currently displayed users
         let bubbles = []; // Array of UserBubble instances
-        let currentIndex = 0;
+        let currentIndex = 0; // For spotlight
+        let rotationIndex = 0; // For batch rotation
+        let rotationTimer = null;
         let isGridMode = false;
         
         const container = document.getElementById('bubble-container');
@@ -313,17 +402,36 @@
         class UserBubble {
             constructor(user) {
                 this.user = user;
+                this.id = user.gsdh_id || user.name + Math.random(); // Fallback ID
                 this.element = document.createElement('div');
                 this.element.className = 'user-bubble';
                 
                 // Content
-                const initial = user.name ? user.name.charAt(0) : '?';
+                const name = user.name || '嘉宾';
+                // Dynamic font size based on name length
+                let fontSize = '0.9rem';
+                if (name.length > 3) fontSize = '0.7rem';
+                if (name.length > 4) fontSize = '0.6rem';
+                
                 this.element.innerHTML = `
-                    <div class="bubble-avatar">${initial}</div>
-                    <div class="bubble-name">${user.name || '嘉宾'}</div>
+                    <div class="bubble-avatar" style="font-size: ${fontSize}">${name}</div>
                 `;
                 
+                // Interaction: Click to show in spotlight
+                this.element.style.cursor = 'pointer';
+                this.element.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    showUserManual(this.user);
+                });
+                
+                // Initial Fade In
+                this.element.style.opacity = '0';
                 container.appendChild(this.element);
+                
+                // Trigger reflow for transition
+                requestAnimationFrame(() => {
+                    this.element.style.opacity = '1';
+                });
 
                 // Initial Position (Random)
                 this.x = Math.random() * (width - CONFIG.bubbleSize);
@@ -360,27 +468,100 @@
                 this.y = targetY;
                 this.updatePosition();
             }
+            
+            remove() {
+                this.element.style.opacity = '0';
+                this.element.style.transform = `translate(${this.x}px, ${this.y}px) scale(0.5)`;
+                setTimeout(() => {
+                    if (this.element.parentNode) {
+                        this.element.parentNode.removeChild(this.element);
+                    }
+                }, 500); // Wait for transition
+            }
         }
 
-        // --- Logic: Layout Manager ---
-        function updateLayout() {
-            const count = bubbles.length;
+        // --- Logic: Layout & Display Manager ---
+        
+        function updateDisplay() {
+            // Determine which users to show
+            let targetUsers = [];
+            
+            if (allUsers.length <= CONFIG.maxDisplay) {
+                targetUsers = [...allUsers];
+                // Reset rotation index if we fit in one page
+                rotationIndex = 0;
+            } else {
+                // Rotation Logic
+                // If rotationIndex is out of bounds, reset
+                if (rotationIndex >= allUsers.length) rotationIndex = 0;
+                
+                // Get slice
+                targetUsers = allUsers.slice(rotationIndex, rotationIndex + CONFIG.maxDisplay);
+                
+                // Wrap around if needed (though user asked for "batch", maybe wrapping to fill page is better?)
+                // If we want to maintain constant count:
+                if (targetUsers.length < CONFIG.maxDisplay) {
+                     const remaining = CONFIG.maxDisplay - targetUsers.length;
+                     targetUsers = targetUsers.concat(allUsers.slice(0, remaining));
+                }
+            }
+            
+            displayedUsers = targetUsers;
+            syncBubbles(targetUsers);
+            
+            // Update Grid/Float mode based on DISPLAYED count (usually maxDisplay if full)
+            // But config says switch to grid when users > 20.
+            // If maxDisplay is 30, then 20-30 will be grid.
+            const count = displayedUsers.length;
             const wasGrid = isGridMode;
             isGridMode = count > CONFIG.gridThreshold;
-
+            
             if (isGridMode) {
                 arrangeGrid();
-            } else {
-                // If switching back to floating (unlikely but possible), ensure animation loop is running
-                if (wasGrid) {
-                    // Re-randomize velocities if needed or just let them float from current pos
+            } else if (wasGrid && !isGridMode) {
+                 // Switching back to float, ensure they have random velocities if needed
+                 // But typically we don't go back from grid to float unless people leave.
+            }
+        }
+        
+        function syncBubbles(targetUsers) {
+            const targetIds = new Set(targetUsers.map(u => u.gsdh_id || u.name));
+            
+            // 1. Remove bubbles not in target
+            // Filter bubbles in place
+            const keptBubbles = [];
+            for (const b of bubbles) {
+                if (!targetIds.has(b.id)) {
+                    b.remove();
+                } else {
+                    keptBubbles.push(b);
                 }
+            }
+            bubbles = keptBubbles;
+            
+            // 2. Add new bubbles
+            const currentIds = new Set(bubbles.map(b => b.id));
+            for (const u of targetUsers) {
+                const uid = u.gsdh_id || u.name;
+                if (!currentIds.has(uid)) {
+                    bubbles.push(new UserBubble(u));
+                }
+            }
+            
+            // Re-arrange if grid
+            if (isGridMode) {
+                // Delay slightly to let new bubbles exist in DOM? 
+                // arrangeGrid uses 'bubbles' array, so it's fine.
+                // We might want to call arrangeGrid immediately.
+                 setTimeout(arrangeGrid, 50);
             }
         }
 
         function arrangeGrid() {
             // Simple Grid Algorithm
             const count = bubbles.length;
+            if (count === 0) return;
+            
             const cols = Math.ceil(Math.sqrt(count * (width / height)));
             const rows = Math.ceil(count / cols);
             
@@ -398,6 +579,17 @@
                 bubble.moveTo(targetX, targetY);
             });
         }
+        
+        function startRotationTimer() {
+            if (rotationTimer) clearInterval(rotationTimer);
+            rotationTimer = setInterval(() => {
+                if (allUsers.length > CONFIG.maxDisplay) {
+                    rotationIndex += CONFIG.maxDisplay;
+                    if (rotationIndex >= allUsers.length) rotationIndex = 0;
+                    updateDisplay();
+                }
+            }, CONFIG.rotationInterval);
+        }
 
         // --- Animation Loop ---
         function animate() {
@@ -414,38 +606,49 @@
                 const res = await fetch('/api/wall/data');
                 const json = await res.json();
                 if (json.success) {
-                    const newUsers = json.data;
-                    document.getElementById('checkin-count').textContent = newUsers.length;
+                    const fetchedUsers = json.data;
+                    document.getElementById('checkin-count').textContent = fetchedUsers.length;
 
-                    // Detect new users
-                    // Assuming API returns all users. We check by ID or Name (assuming unique for now or just length)
-                    // For simplicity, we just check if length increased. 
-                    // In production, we should map IDs.
-                    
-                    if (newUsers.length > users.length) {
-                        // Add new bubbles
-                        for (let i = users.length; i < newUsers.length; i++) {
-                            const u = newUsers[i];
-                            bubbles.push(new UserBubble(u));
+                    // Check if new data arrived
+                    if (fetchedUsers.length !== allUsers.length) {
+                         const oldCount = allUsers.length;
+                         allUsers = fetchedUsers;
+                         
+                         // If we have more users than before
+                         if (allUsers.length > oldCount) {
+                             // Strategy: If we are rotating, jump to the NEWEST users immediately
+                             // The API returns users sorted by created_at DESC (Newest first).
+                             // So new users are at index 0.
+                             // Wait, API says: ORDER BY created_at DESC
+                             // So new users are at the TOP (0).
+                             
+                             // If we want to show new users immediately:
+                             rotationIndex = 0; // Show the first batch (newest)
+                             updateDisplay();
+                             
+                             // Reset timer to keep this view for a full interval
+                             startRotationTimer();
+                             
+                             // Trigger spotlight for newest
+                             if (currentIndex === 0 && allUsers.length > 0) {
+                                 // Maybe spotlight the very first one
+                                 updateCard(allUsers[0]);
+                                 // Restart spotlight loop
+                                 startSpotlight();
+                             }
+                         } else {
+                             // Users removed? Just update
+                             updateDisplay();
+                         }
+                    } else {
+                        // Data didn't change count, but maybe content changed?
+                        // For simplicity, assume count change triggers update.
+                        // Or if it's the first load
+                        if (bubbles.length === 0 && allUsers.length > 0) {
+                             updateDisplay();
+                             startRotationTimer();
+                             startSpotlight();
                         }
-                        
-                        // Update local list
-                        users = newUsers;
-                        
-                        // Update Layout Mode
-                        updateLayout();
-                        
-                        // Trigger Spotlight for the newest user (or cycle)
-                        // If it's the first load, start the cycle loop
-                        if (currentIndex === 0 && users.length > 0) {
-                            startSpotlight();
-                        }
-                    } else if (users.length === 0 && newUsers.length > 0) {
-                        // First load
-                        users = newUsers;
-                        users.forEach(u => bubbles.push(new UserBubble(u)));
-                        updateLayout();
-                        startSpotlight();
                     }
                 }
             } catch (e) {
@@ -454,41 +657,59 @@
         }
 
         // --- Spotlight Logic ---
+        let spotlightInterval = null;
+
+        function updateCard(user) {
+             const card = document.getElementById('card');
+             card.classList.remove('active');
+             
+             // Wait for fade out
+             setTimeout(() => {
+                 if(document.getElementById('card-name')) document.getElementById('card-name').textContent = user.name;
+                 if(document.getElementById('card-position')) document.getElementById('card-position').textContent = user.position || '';
+                 if(document.getElementById('card-company')) document.getElementById('card-company').textContent = user.company_name || '嘉宾';
+                 if(document.getElementById('card-avatar')) document.getElementById('card-avatar').textContent = user.name ? user.name.charAt(0) : '?';
+                 
+                 const extraDiv = document.getElementById('card-extra');
+                 if (extraDiv) {
+                     if (SHOW_VISION && user.vision_2026) {
+                         extraDiv.textContent = "🎯 " + user.vision_2026;
+                         extraDiv.style.display = 'block';
+                     } else if (SHOW_SCOPE && user.business_scope) {
+                         extraDiv.textContent = user.business_scope;
+                         extraDiv.style.display = 'block';
+                     } else {
+                         extraDiv.style.display = 'none';
+                     }
+                 }
+                 card.classList.add('active');
+             }, 800);
+        }
+
         function startSpotlight() {
+            if (spotlightInterval) clearInterval(spotlightInterval);
             showNextUser();
-            setInterval(showNextUser, 8000);
+            spotlightInterval = setInterval(showNextUser, 8000);
         }
 
         function showNextUser() {
             if (users.length === 0) return;
-
-            const card = document.getElementById('card');
-            card.classList.remove('active');
-
-            setTimeout(() => {
-                const user = users[currentIndex];
-                currentIndex = (currentIndex + 1) % users.length;
-
-                if(document.getElementById('card-name')) document.getElementById('card-name').textContent = user.name;
-                if(document.getElementById('card-position')) document.getElementById('card-position').textContent = user.position || '';
-                if(document.getElementById('card-company')) document.getElementById('card-company').textContent = user.company_name || '嘉宾';
-                if(document.getElementById('card-avatar')) document.getElementById('card-avatar').textContent = user.name ? user.name.charAt(0) : '?';
-                
-                const extraDiv = document.getElementById('card-extra');
-                if (extraDiv) {
-                    if (SHOW_VISION && user.vision_2026) {
-                        extraDiv.textContent = "🎯 " + user.vision_2026;
-                        extraDiv.style.display = 'block';
-                    } else if (SHOW_SCOPE && user.business_scope) {
-                        extraDiv.textContent = user.business_scope;
-                        extraDiv.style.display = 'block';
-                    } else {
-                        extraDiv.style.display = 'none';
-                    }
-                }
-
-                card.classList.add('active');
-            }, 800);
+            const user = users[currentIndex];
+            currentIndex = (currentIndex + 1) % users.length;
+            updateCard(user);
+        }
+        
+        function showUserManual(user) {
+            // Pause auto-rotation
+            if (spotlightInterval) clearInterval(spotlightInterval);
+            
+            // Show clicked user immediately
+            updateCard(user);
+            
+            // Resume auto-rotation after 15 seconds
+            spotlightInterval = setTimeout(() => {
+                startSpotlight();
+            }, 15000);
         }
 
         // Initial Load

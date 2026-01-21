@@ -487,7 +487,7 @@
                 <label>请输入手机号码或姓名</label>
                 <input type="text" id="search-input" placeholder="例如：13800000000 或 张三">
             </div>
-            <button onclick="searchUser()" id="search-btn">查询</button>
+            <button onclick="searchUser()" id="search-btn">签到</button>
             <div id="search-error" class="error-msg hidden"></div>
             <div id="user-list" class="hidden" style="margin-top: 15px;"></div>
         </div>
@@ -568,7 +568,7 @@
             </div>
             
             <p style="margin-top: 20px;">请入座等待会议开始</p>
-            <button onclick="resetFlow()" style="margin-top: 30px; background: transparent; border: 1px solid rgba(255,255,255,0.2);">返回首页</button>
+            <button id="success-btn" onclick="window.location.href='/wall'" style="margin-top: 30px; background: transparent; border: 1px solid rgba(255,255,255,0.2);">前往活动</button>
         </div>
 
         <!-- Step 4: Already Signed -->
@@ -593,7 +593,7 @@
             </div>
             
             <p style="margin-top: 20px;">请入座等待会议开始</p>
-            <button onclick="resetFlow()" style="margin-top: 30px; background: transparent; border: 1px solid rgba(255,255,255,0.2);">返回首页</button>
+            <button id="signed-btn" onclick="window.location.href='/wall'" style="margin-top: 30px; background: transparent; border: 1px solid rgba(255,255,255,0.2);">前往活动</button>
         </div>
     </div>
 
@@ -799,6 +799,7 @@
                 const data = await response.json();
                 
                 if (response.ok) {
+                    document.getElementById('success-btn').textContent = payload.name + '前往活动';
                     if (CONFIG.enable_seating !== false) {
                         // Show assigned seat
                         document.getElementById('seat-display').textContent = data.seat || "自由席";

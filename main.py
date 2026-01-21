@@ -48,6 +48,8 @@ DEFAULT_CONFIG = {
         "vision_2026": {"label": "2026年业务愿景", "show": True, "required": False}
     },
     "wall_config": {
+        "show_title": True,
+        "learn_more_url": "https://www.example.com",
         "show_fields": {
              "name": True,
              "company_name": True,
@@ -67,6 +69,15 @@ def load_config():
             for key, value in DEFAULT_CONFIG.items():
                 if key not in config:
                     config[key] = value
+            
+            # Deep merge for wall_config
+            if "wall_config" in config and isinstance(config["wall_config"], dict):
+                for k, v in DEFAULT_CONFIG["wall_config"].items():
+                    if k not in config["wall_config"]:
+                        config["wall_config"][k] = v
+            elif "wall_config" not in config:
+                 config["wall_config"] = DEFAULT_CONFIG["wall_config"]
+                 
             return config
     return DEFAULT_CONFIG
 
@@ -1087,7 +1098,7 @@ def get_wall_data():
         
         # 获取最新的签到数据（按时间倒序）
         query = """
-        SELECT name, company_name, position, business_scope, vision_2026, social_point
+        SELECT gsdh_id, name, company_name, position, business_scope, vision_2026, social_point
         FROM checkin_info
         ORDER BY created_at DESC
         """
