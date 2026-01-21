@@ -46,7 +46,7 @@
     },
     "db_host": "6.6.6.86",
     "db_port": "5432",
-    "db_user": "gsdh",
-    "db_password": "123gsdh",
-    "db_name": "gsdh"
+    "db_user": "zhao",
+    "db_password": "123zhao",
+    "db_name": "zhao"
 }
