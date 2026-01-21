@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, UploadFile, File
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -10,11 +10,61 @@ from typing import Optional, List, Dict
 import random
 import uuid
 import os
+import json
+import shutil
 import difflib
 from concurrent.futures import ProcessPoolExecutor
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# Config Management
+CONFIG_FILE = "config.json"
+DEFAULT_CONFIG = {
+    "event_title": "云南AI共生大会",
+    "event_sub_title": "2026 INTELLIGENT LEADERSHIP • AI SYMBIOSIS",
+    "event_time": "1月10日 下午 2:00",
+    "event_location": "金鼎科技园18号平台B座一楼报告厅",
+    "event_content": "邀请重磅大咖分享AI在各行业的企业应用及案例，含深度交流环节。",
+    "primary_color": "#00f2ff",
+    "secondary_color": "#0066ff",
+    "bg_color": "#050814",
+    "header_image": "/static/image.jpg",
+    "db_host": os.getenv("DB_HOST", "localhost"),
+    "db_port": os.getenv("DB_PORT", "5432"),
+    "db_user": os.getenv("DB_USER", "gsdh"),
+    "db_password": os.getenv("DB_PASSWORD", "123gsdh"),
+    "db_name": os.getenv("DB_NAME", "gsdh"),
+    "enable_ticket_validation": True,
+    "enable_seating": True,
+    "total_tables": 14,
+    "max_per_table": 10,
+    "field_config": {
+        "name": {"label": "姓名", "show": True, "required": True},
+        "phone": {"label": "手机号码", "show": True, "required": True},
+        "company_name": {"label": "单位名称", "show": True, "required": False},
+        "position": {"label": "职务", "show": True, "required": False},
+        "business_scope": {"label": "公司主要经营 / 业务", "show": True, "required": False},
+        "vision_2026": {"label": "2026年业务愿景", "show": True, "required": False}
+    }
+}
+
+def load_config():
+    if os.path.exists(CONFIG_FILE):
+        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+            config = json.load(f)
+            # Merge with default config to ensure all keys exist
+            for key, value in DEFAULT_CONFIG.items():
+                if key not in config:
+                    config[key] = value
+            return config
+    return DEFAULT_CONFIG
+
+def save_config(config):
+    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+        json.dump(config, f, ensure_ascii=False, indent=4)
+
+CONFIG = load_config()
 
 app = FastAPI()
 
@@ -34,16 +84,8 @@ async def shutdown_event():
         process_pool.shutdown()
         print("ProcessPoolExecutor shutdown")
 
-# Database connection parameters
-DB_CONFIG = {
-    "host": os.getenv("DB_HOST", "localhost"),
-    "port": os.getenv("DB_PORT", "5432"),
-    # "host": os.getenv("DB_HOST", "121.43.104.161"),
-    # "port": os.getenv("DB_PORT", "6432"),
-    "user": os.getenv("DB_USER", "gsdh"),
-    "password": os.getenv("DB_PASSWORD", "123gsdh"),
-    "database": os.getenv("DB_NAME", "gsdh")
-}
+# Database connection parameters - Moved to CONFIG
+
 # 商业领域同义词库 (Business Thesaurus) - 用于解决模糊语义匹配
 BUSINESS_THESAURUS = {
     # 核心意图: [关联行业/关键词列表]
@@ -188,11 +230,31 @@ def calculate_matches_task(user_industry: str, user_vision: str, others: List[Di
 
 
 # Initialize Connection Pool
-try:
-    postgreSQL_pool = psycopg2.pool.ThreadedConnectionPool(1, 20, **DB_CONFIG)
-    print("PostgreSQL connection pool created successfully")
-except (Exception, psycopg2.DatabaseError) as error:
-    print("Error while connecting to PostgreSQL", error)
+postgreSQL_pool = None
+
+def init_db_pool():
+    global postgreSQL_pool
+    if postgreSQL_pool:
+        try:
+            postgreSQL_pool.closeall()
+        except:
+            pass
+            
+    db_config = {
+        "host": CONFIG.get("db_host", "localhost"),
+        "port": CONFIG.get("db_port", "5432"),
+        "user": CONFIG.get("db_user", "gsdh"),
+        "password": CONFIG.get("db_password", "123gsdh"),
+        "database": CONFIG.get("db_name", "gsdh")
+    }
+    
+    try:
+        postgreSQL_pool = psycopg2.pool.ThreadedConnectionPool(1, 20, **db_config)
+        print(f"PostgreSQL connection pool created successfully for {db_config['host']}:{db_config['port']}")
+    except (Exception, psycopg2.DatabaseError) as error:
+        print("Error while connecting to PostgreSQL", error)
+
+init_db_pool()
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -259,8 +321,12 @@ def assign_seat(cur, user_industry: str) -> str:
     2. Mix industries (try to put user in a table where their industry is least represented)
        - Uses natural language similarity to judge industry overlap
     """
-    TOTAL_TABLES = 11
-    MAX_PER_TABLE = 12
+    # Check if seating is enabled
+    if not CONFIG.get("enable_seating", True):
+        return "自由席"
+
+    TOTAL_TABLES = int(CONFIG.get("total_tables", 14))
+    MAX_PER_TABLE = int(CONFIG.get("max_per_table", 10))
     
     # Initialize table stats
     tables = {i: {'count': 0, 'industries': []} for i in range(1, TOTAL_TABLES + 1)}
@@ -436,7 +502,10 @@ def get_tablemates(cur, location: str, exclude_id: str, user_vision: str = "", u
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    global CONFIG
+    CONFIG = load_config() # Reload config on refresh
+    # Pass config as json string for JS usage if needed, or individual fields
+    return templates.TemplateResponse("index.html", {"request": request, "config": CONFIG})
 
 class UnlockRequest(BaseModel):
     my_phone: str
@@ -602,6 +671,16 @@ def search_user(query: str):
             if len(users) == 0:
                 cur.close()
                 release_db_connection(conn)
+                
+                # Check if ticket validation is disabled
+                if not CONFIG.get('enable_ticket_validation', True):
+                    # If validation is disabled, allow creating a new user
+                    return JSONResponse(content={
+                        "found": False, 
+                        "allow_create": True, 
+                        "user": {"name": query if not query.isdigit() else "", "phone": query if query.isdigit() else ""}
+                    })
+
                 return JSONResponse(content={"found": False, "message": "未查询到相关信息，请检查输入是否正确"}, status_code=404)
             elif len(users) > 1:
                 # If multiple users found by name, return list for user to select (simplified here to return first or error)
@@ -660,10 +739,52 @@ def checkin_user(checkin_data: CheckinRequest):
         conn = get_db_connection()
         cur = conn.cursor()
         
+        final_gsdh_id = checkin_data.gsdh_id
+        
+        # === Handle New User (TEMP ID) ===
+        if checkin_data.gsdh_id.startswith("TEMP_"):
+            # 1. Calculate new real ID (Max + 1)
+            # Find max numeric new_id. Using regex to ensure we only look at numbers.
+            cur.execute("SELECT MAX(CAST(new_id AS INTEGER)) FROM gsdh_data WHERE new_id ~ '^[0-9]+$'")
+            row = cur.fetchone()
+            max_id = row[0] if row and row[0] is not None else 0
+            new_real_id = str(max_id + 1)
+            
+            # 2. Insert into gsdh_data first to satisfy Foreign Key
+            insert_user_sql = """
+            INSERT INTO gsdh_data (new_id, name, phone, industry_company, fee, payment_channel, is_signed)
+            VALUES (%s, %s, %s, %s, '0', 'onsite_checkin', 'TRUE')
+            """
+            # Use provided company name or default
+            industry_val = checkin_data.company_name or "现场注册"
+            
+            cur.execute(insert_user_sql, (
+                new_real_id,
+                checkin_data.name,
+                checkin_data.phone,
+                industry_val
+            ))
+            
+            # Update ID for subsequent operations
+            final_gsdh_id = new_real_id
+        
         # 0. Get user's industry from gsdh_data to help with seat allocation
-        cur.execute("SELECT industry_company FROM gsdh_data WHERE new_id = %s", (checkin_data.gsdh_id,))
-        res = cur.fetchone()
-        base_industry = res[0] if res and res[0] else ""
+        base_industry = ""
+        enable_validation = CONFIG.get('enable_ticket_validation', True)
+
+        if enable_validation:
+            cur.execute("SELECT industry_company FROM gsdh_data WHERE new_id = %s", (final_gsdh_id,))
+            res = cur.fetchone()
+            base_industry = res[0] if res and res[0] else ""
+        else:
+            # If validation is disabled and NOT a temp user (already handled above), ensure user exists
+            # (Though logic above handles TEMP users, existing users might still need upsert if data is inconsistent)
+            if not checkin_data.gsdh_id.startswith("TEMP_"):
+                 cur.execute("""
+                     INSERT INTO gsdh_data (new_id, name, phone, is_signed, industry_company, fee, payment_channel)
+                     VALUES (%s, %s, %s, 'TRUE', '现场签到', '0', 'skipped')
+                     ON CONFLICT (new_id) DO UPDATE SET is_signed = 'TRUE'
+                 """, (final_gsdh_id, checkin_data.name, checkin_data.phone))
         
         # Combine base industry with the newly provided business_scope for better matching
         user_industry_info = f"{base_industry} {checkin_data.business_scope or ''}".strip()
@@ -686,18 +807,19 @@ def checkin_user(checkin_data: CheckinRequest):
             checkin_data.business_scope,
             checkin_data.vision_2026,
             assigned_seat,  # Use the generated seat
-            checkin_data.gsdh_id
+            final_gsdh_id   # Use the real ID
         ))
         
-        # 3. Update gsdh_data is_signed to TRUE
-        update_sql = "UPDATE gsdh_data SET is_signed = 'TRUE' WHERE new_id = %s"
-        cur.execute(update_sql, (checkin_data.gsdh_id,))
+        # 3. Update gsdh_data is_signed to TRUE (if not already done)
+        if not checkin_data.gsdh_id.startswith("TEMP_"):
+            update_sql = "UPDATE gsdh_data SET is_signed = 'TRUE' WHERE new_id = %s"
+            cur.execute(update_sql, (final_gsdh_id,))
         
         conn.commit()
         
         # 4. Fetch tablemates for the newly assigned seat
         # Use provided vision and industry for matching
-        tablemates = get_tablemates(cur, assigned_seat, checkin_data.gsdh_id, checkin_data.vision_2026 or "", user_industry_info)
+        tablemates = get_tablemates(cur, assigned_seat, final_gsdh_id, checkin_data.vision_2026 or "", user_industry_info)
         
         cur.close()
         release_db_connection(conn)
@@ -712,9 +834,175 @@ def checkin_user(checkin_data: CheckinRequest):
 
 @app.get("/add-user", response_class=HTMLResponse)
 async def add_user_page(request: Request):
+    global CONFIG
+    CONFIG = load_config()
     secret = os.getenv("ADD_USER_SECRET", "123quant-speed")
     print(f"DEBUG: Secret loaded: '{secret}'")
-    return templates.TemplateResponse("add_user.html", {"request": request, "secret": secret})
+    return templates.TemplateResponse("add_user.html", {"request": request, "secret": secret, "config": CONFIG})
+
+class UpdateUserRequest(BaseModel):
+    gsdh_id: str
+    name: str
+    phone: str
+    company_name: Optional[str] = None
+    position: Optional[str] = None
+    business_scope: Optional[str] = None
+    vision_2026: Optional[str] = None
+    is_signed: Optional[str] = None
+    location: Optional[str] = None
+    fee: Optional[str] = None
+    payment_channel: Optional[str] = None
+
+class UncheckinRequest(BaseModel):
+    """
+    取消签到请求：
+    - gsdh_id：用户唯一 ID
+    - 可选覆盖基础信息字段：name、company_name
+    """
+    gsdh_id: str
+    name: Optional[str] = None
+    company_name: Optional[str] = None
+
+@app.get("/edit", response_class=HTMLResponse)
+async def edit_page(request: Request):
+    global CONFIG
+    CONFIG = load_config()
+    return templates.TemplateResponse("edit.html", {"request": request, "config": CONFIG})
+
+@app.get("/api/get-user-details")
+def get_user_details(phone: str):
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        cur.execute("""
+            SELECT 
+                gd.name as name_base, gd.industry_company as company_base, gd.is_signed, gd.fee, gd.payment_channel,
+                ci.name as name_checkin, ci.company_name as company_checkin,
+                ci.position, ci.business_scope, ci.vision_2026, ci.location
+            FROM gsdh_data gd
+            LEFT JOIN checkin_info ci ON gd.new_id = ci.gsdh_id
+            WHERE gd.phone = %s
+        """, (phone,))
+        
+        row = cur.fetchone()
+        cur.close()
+        release_db_connection(conn)
+        
+        if row:
+            data = {
+                "name": row['name_checkin'] or row['name_base'],
+                "company_name": row['company_checkin'] or row['company_base'],
+                "position": row['position'],
+                "business_scope": row['business_scope'],
+                "vision_2026": row['vision_2026'],
+                "is_signed": row['is_signed'],
+                "location": row['location'],
+                "fee": row['fee'],
+                "payment_channel": row['payment_channel']
+            }
+            return {"success": True, "data": data}
+        else:
+            return JSONResponse(content={"success": False, "message": "User not found"}, status_code=404)
+            
+    except Exception as e:
+        if 'conn' in locals() and conn:
+            release_db_connection(conn)
+        return JSONResponse(content={"success": False, "message": str(e)}, status_code=500)
+
+@app.post("/api/update-user")
+def update_user(req: UpdateUserRequest):
+    """
+    仅覆盖已有数据的编辑接口：
+    - 总是更新基础表 gsdh_data
+    - 仅当存在对应的 checkin_info 时覆盖更新该记录
+    - 不会新增新的 checkin_info 记录（编辑不触发创建）
+    """
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # 1. Update gsdh_data (Base info)
+        cur.execute("""
+            UPDATE gsdh_data 
+            SET name = %s, industry_company = %s, is_signed = %s, fee = %s, payment_channel = %s
+            WHERE new_id = %s
+        """, (req.name, req.company_name, req.is_signed, req.fee, req.payment_channel, req.gsdh_id))
+        
+        # 2. Check if checkin_info exists
+        cur.execute("SELECT 1 FROM checkin_info WHERE gsdh_id = %s", (req.gsdh_id,))
+        exists = cur.fetchone()
+        
+        if exists:
+            # Update existing checkin_info
+            cur.execute("""
+                UPDATE checkin_info
+                SET name = %s, company_name = %s, position = %s, business_scope = %s, vision_2026 = %s, location = %s
+                WHERE gsdh_id = %s
+            """, (req.name, req.company_name, req.position, req.business_scope, req.vision_2026, req.location, req.gsdh_id))
+            msg = "更新成功"
+        else:
+            # Do not create new checkin_info on edit, but return success for base info update
+            msg = "基础信息已更新（未签到用户暂存部分详情）"
+        
+        conn.commit()
+        cur.close()
+        release_db_connection(conn)
+        
+        return {"success": True, "message": msg}
+        
+    except Exception as e:
+        if 'conn' in locals() and conn:
+            conn.rollback()
+            release_db_connection(conn)
+        return JSONResponse(content={"success": False, "message": str(e)}, status_code=500)
+
+@app.post("/api/uncheckin")
+def uncheckin_user(req: UncheckinRequest):
+    """
+    取消签到并覆盖基础信息：
+    - 删除该用户的 checkin_info 记录
+    - 将 gsdh_data.is_signed 置为 FALSE
+    - 可选同时更新 gsdh_data 的 name、industry_company
+    """
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # 删除签到记录
+        cur.execute("DELETE FROM checkin_info WHERE gsdh_id = %s", (req.gsdh_id,))
+        
+        # 更新基础信息与签到状态
+        if req.name is not None and req.company_name is not None:
+            cur.execute("""
+                UPDATE gsdh_data
+                SET name = %s, industry_company = %s, is_signed = 'FALSE'
+                WHERE new_id = %s
+            """, (req.name, req.company_name, req.gsdh_id))
+        elif req.name is not None:
+            cur.execute("""
+                UPDATE gsdh_data
+                SET name = %s, is_signed = 'FALSE'
+                WHERE new_id = %s
+            """, (req.name, req.gsdh_id))
+        elif req.company_name is not None:
+            cur.execute("""
+                UPDATE gsdh_data
+                SET industry_company = %s, is_signed = 'FALSE'
+                WHERE new_id = %s
+            """, (req.company_name, req.gsdh_id))
+        else:
+            cur.execute("UPDATE gsdh_data SET is_signed = 'FALSE' WHERE new_id = %s", (req.gsdh_id,))
+        
+        conn.commit()
+        cur.close()
+        release_db_connection(conn)
+        return {"success": True, "message": "已取消签到并更新基础信息"}
+    except Exception as e:
+        if 'conn' in locals() and conn:
+            conn.rollback()
+            release_db_connection(conn)
+        return JSONResponse(content={"success": False, "message": f"取消签到失败: {str(e)}"}, status_code=500)
 
 @app.post("/api/add-user")
 def add_user_api(user_data: AddUserRequest):
@@ -758,6 +1046,125 @@ def add_user_api(user_data: AddUserRequest):
             conn.rollback()
             release_db_connection(conn)
         return JSONResponse(content={"success": False, "message": f"添加失败: {str(e)}"}, status_code=500)
+
+@app.get("/admin", response_class=HTMLResponse)
+async def admin_page(request: Request):
+    """
+    渲染管理后台页面。
+    """
+    secret = os.getenv("ADD_USER_SECRET", "123quant-speed")
+    return templates.TemplateResponse("admin.html", {"request": request, "secret": secret})
+
+@app.get("/api/admin/config")
+def get_config():
+    """
+    获取当前的配置信息。
+    """
+    return load_config()
+
+@app.post("/api/admin/config")
+def update_config(config: Dict):
+    """
+    更新配置信息并保存到文件。
+    """
+    global CONFIG
+    save_config(config)
+    CONFIG = config
+    # Re-initialize DB pool with new config
+    init_db_pool()
+    return {"success": True}
+
+@app.post("/api/admin/test-db")
+def test_db_connection(config: Dict):
+    """
+    测试数据库连接
+    """
+    try:
+        conn = psycopg2.connect(
+            host=config.get("db_host"),
+            port=config.get("db_port"),
+            user=config.get("db_user"),
+            password=config.get("db_password"),
+            database=config.get("db_name"),
+            connect_timeout=5
+        )
+        conn.close()
+        return {"success": True, "message": "连接成功"}
+    except Exception as e:
+        return JSONResponse(content={"success": False, "message": str(e)}, status_code=400)
+
+@app.post("/api/admin/upload")
+async def upload_image(file: UploadFile = File(...)):
+    """
+    上传图片文件到 static 目录。
+    """
+    try:
+        file_location = f"static/{file.filename}"
+        with open(file_location, "wb+") as file_object:
+            shutil.copyfileobj(file.file, file_object)
+        return {"success": True, "url": f"/static/{file.filename}"}
+    except Exception as e:
+        return JSONResponse(content={"success": False, "message": str(e)}, status_code=500)
+
+@app.post("/api/admin/reset-db")
+def reset_database():
+    """
+    重置数据库：删除并重新创建 gsdh_data 和 checkin_info 表。
+    """
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Drop existing tables
+        cur.execute("DROP TABLE IF EXISTS checkin_info CASCADE;")
+        cur.execute("DROP TABLE IF EXISTS gsdh_data CASCADE;")
+        
+        # Recreate tables
+        # gsdh_data
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS gsdh_data (
+                new_id VARCHAR(50) PRIMARY KEY,
+                name VARCHAR(100),
+                phone VARCHAR(20) UNIQUE,
+                industry_company VARCHAR(200),
+                fee VARCHAR(50),
+                payment_channel VARCHAR(50),
+                is_signed VARCHAR(10) DEFAULT 'FALSE'
+            );
+        """)
+        
+        # checkin_info
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS checkin_info (
+                id SERIAL PRIMARY KEY,
+                gsdh_id VARCHAR(50) REFERENCES gsdh_data(new_id),
+                name VARCHAR(100),
+                phone VARCHAR(20),
+                company_name VARCHAR(200),
+                position VARCHAR(100),
+                business_scope TEXT,
+                vision_2026 TEXT,
+                location VARCHAR(50),
+                social_point INTEGER DEFAULT 5,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        
+        # Initial Data (Optional - add a test user)
+        cur.execute("""
+            INSERT INTO gsdh_data (new_id, name, phone, industry_company, fee, payment_channel, is_signed)
+            VALUES ('1', '测试用户', '13800000000', '科技', '0', 'test', 'FALSE');
+        """)
+        
+        conn.commit()
+        cur.close()
+        release_db_connection(conn)
+        return {"success": True, "message": "数据库已重置"}
+    except Exception as e:
+        if 'conn' in locals() and conn:
+            conn.rollback()
+            release_db_connection(conn)
+        return JSONResponse(content={"success": False, "message": str(e)}, status_code=500)
 
 if __name__ == "__main__":
     import uvicorn

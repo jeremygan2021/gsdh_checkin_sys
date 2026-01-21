@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>云南AI共生大会 - 签到</title>
+    <title>{{ config.event_title }} - 签到</title>
     <style>
         :root {
-            --primary-color: #00f2ff; /* Cyan from the AI sphere/text */
-            --secondary-color: #0066ff; /* Rich blue */
-            --bg-color: #050814; /* Deep space blue/black */
+            --primary-color: {{ config.primary_color }};
+            --secondary-color: {{ config.secondary_color }};
+            --bg-color: {{ config.bg_color }};
             --card-bg: rgba(12, 24, 50, 0.5); /* Glassy blue tint */
             --text-color: #ffffff;
             --text-muted: #b0c4de; /* Light blue-grey */
@@ -468,15 +468,15 @@
 <body>
     <div class="container">
         <header>
-            <img src="/static/image.jpg" alt="云南AI共生大会" class="header-img" onerror="this.style.display='none'">
+            <img src="{{ config.header_image }}" alt="{{ config.event_title }}" class="header-img" onerror="this.style.display='none'">
             <div style="text-align: center; margin-bottom: 10px; color: var(--primary-color); font-size: 0.8rem; letter-spacing: 2px; font-weight: 600; opacity: 0.9;">
-                2026 INTELLIGENT LEADERSHIP • AI SYMBIOSIS
+                {{ config.event_sub_title }}
             </div>
-            <h1>云南AI共生大会</h1>
+            <h1>{{ config.event_title }}</h1>
             <div class="event-info">
-                <p>📅 <strong>时间：</strong>1月10日 下午 2:00</p>
-                <p>📍 <strong>地点：</strong>金鼎科技园18号平台B座一楼报告厅</p>
-                <p>💡 <strong>内容：</strong>邀请重磅大咖分享AI在各行业的企业应用及案例，含深度交流环节。</p>
+                <p>📅 <strong>时间：</strong>{{ config.event_time }}</p>
+                <p>📍 <strong>地点：</strong>{{ config.event_location }}</p>
+                <p>💡 <strong>内容：</strong>{{ config.event_content }}</p>
             </div>
         </header>
 
@@ -513,25 +513,35 @@
                     <input type="text" id="form-phone" required>
                 </div>
 
+                {% set fc = config.field_config or {} %}
+                
+                {% if fc.company_name and fc.company_name.show %}
                 <div class="input-group">
-                    <label>单位名称</label>
-                    <input type="text" id="form-company" placeholder="点此输入">
+                    <label>{{ fc.company_name.label }}</label>
+                    <input type="text" id="form-company" placeholder="点此输入" {{ 'required' if fc.company_name.required else '' }}>
                 </div>
+                {% endif %}
 
+                {% if fc.position and fc.position.show %}
                 <div class="input-group">
-                    <label>职务</label>
-                    <input type="text" id="form-position" placeholder="点此输入">
+                    <label>{{ fc.position.label }}</label>
+                    <input type="text" id="form-position" placeholder="点此输入" {{ 'required' if fc.position.required else '' }}>
                 </div>
+                {% endif %}
 
+                {% if fc.business_scope and fc.business_scope.show %}
                 <div class="input-group">
-                    <label>公司主要经营 / 业务</label>
-                    <textarea id="form-business" rows="2" placeholder="点此输入"></textarea>
+                    <label>{{ fc.business_scope.label }}</label>
+                    <textarea id="form-business" rows="2" placeholder="点此输入" {{ 'required' if fc.business_scope.required else '' }}></textarea>
                 </div>
+                {% endif %}
 
+                {% if fc.vision_2026 and fc.vision_2026.show %}
                 <div class="input-group">
-                    <label>2026年业务愿景</label>
-                    <textarea id="form-vision" rows="3" placeholder="点此输入 (为了业务更好对接，最好表述清晰)"></textarea>
+                    <label>{{ fc.vision_2026.label }}</label>
+                    <textarea id="form-vision" rows="3" placeholder="点此输入 (为了业务更好对接，最好表述清晰)" {{ 'required' if fc.vision_2026.required else '' }}></textarea>
                 </div>
+                {% endif %}
 
                 <input type="hidden" id="form-location" value="">
 
@@ -544,7 +554,7 @@
         <div id="step-success" class="card hidden" style="text-align: center; padding: 40px 20px;">
             <div style="font-size: 4rem; margin-bottom: 20px;">🎉</div>
             <h2 class="success-msg">签到成功！</h2>
-            <p style="color: var(--text-muted); margin-bottom: 20px;">您的座位已分配</p>
+            <p id="success-seat-label" style="color: var(--text-muted); margin-bottom: 20px;">您的座位已分配</p>
             
             <div id="seat-display" class="seat-info">
                 <!-- Seat number will be inserted here -->
@@ -569,7 +579,7 @@
                 <h3 id="signed-name" style="margin-bottom: 5px;"></h3>
                 <p id="signed-phone" style="opacity: 0.7;"></p>
             </div>
-            <p style="color: var(--text-muted); margin-bottom: 20px;">您的座位是</p>
+            <p id="signed-seat-label" style="color: var(--text-muted); margin-bottom: 20px;">您的座位是</p>
             
             <div id="signed-seat-display" class="seat-info">
                 <!-- Seat number will be inserted here -->
@@ -622,6 +632,8 @@
     <script>
         // Store selected user data
         let currentUser = null;
+        // Inject Config
+        const CONFIG = {{ config | tojson }};
 
         async function searchUser() {
             const query = document.getElementById('search-input').value.trim();
@@ -648,6 +660,24 @@
                 const data = await response.json();
 
                 if (response.ok) {
+                    if (data.allow_create) {
+                        const u = data.user || {};
+                        const tempId = 'TEMP_' + Date.now();
+                        currentUser = { new_id: tempId };
+
+                        document.getElementById('gsdh-id').value = tempId;
+                        document.getElementById('form-name').value = u.name || (!/^\d+$/.test(query) ? query : '');
+                        document.getElementById('form-phone').value = u.phone || (/^\d+$/.test(query) ? query : '');
+
+                        document.getElementById('display-name').textContent = document.getElementById('form-name').value || '新嘉宾';
+                        document.getElementById('display-phone').textContent = document.getElementById('form-phone').value;
+                        document.getElementById('display-company').textContent = '现场注册';
+
+                        document.getElementById('step-search').classList.add('hidden');
+                        document.getElementById('step-form').classList.remove('hidden');
+                        return;
+                    }
+
                     if (data.multiple) {
                         // Handle multiple results
                         listDiv.classList.remove('hidden');
@@ -666,12 +696,22 @@
                         
                         document.getElementById('signed-name').textContent = data.user.name;
                         document.getElementById('signed-phone').textContent = data.user.phone;
-                        document.getElementById('signed-seat-display').textContent = data.seat || "自由席";
                         
-                        // Show tablemates if available
-                        if (data.tablemates && data.tablemates.length > 0) {
-                            renderTablemates(data.tablemates, 'signed-tablemates-list', 'signed-tablemates-container');
+                        if (CONFIG.enable_seating !== false) {
+                            document.getElementById('signed-seat-display').textContent = data.seat || "自由席";
+                            document.getElementById('signed-seat-display').style.display = 'block';
+                            document.getElementById('signed-seat-label').textContent = "您的座位是";
+                            document.getElementById('signed-seat-label').style.display = 'block';
+
+                            // Show tablemates if available
+                            if (data.tablemates && data.tablemates.length > 0) {
+                                renderTablemates(data.tablemates, 'signed-tablemates-list', 'signed-tablemates-container');
+                            } else {
+                                document.getElementById('signed-tablemates-container').classList.add('hidden');
+                            }
                         } else {
+                            document.getElementById('signed-seat-display').style.display = 'none';
+                            document.getElementById('signed-seat-label').textContent = "签到成功，请自由入座";
                             document.getElementById('signed-tablemates-container').classList.add('hidden');
                         }
                     } else {
@@ -730,15 +770,21 @@
             btn.innerHTML = '<span class="loader"></span> 提交中...';
             errorDiv.classList.add('hidden');
 
+            // Helper to safe get value
+            const getVal = (id) => {
+                const el = document.getElementById(id);
+                return el ? el.value : '';
+            };
+
             const payload = {
-                gsdh_id: document.getElementById('gsdh-id').value,
-                name: document.getElementById('form-name').value,
-                phone: document.getElementById('form-phone').value,
-                company_name: document.getElementById('form-company').value,
-                position: document.getElementById('form-position').value,
-                business_scope: document.getElementById('form-business').value,
-                vision_2026: document.getElementById('form-vision').value,
-                location: document.getElementById('form-location').value
+                gsdh_id: getVal('gsdh-id'),
+                name: getVal('form-name'),
+                phone: getVal('form-phone'),
+                company_name: getVal('form-company'),
+                position: getVal('form-position'),
+                business_scope: getVal('form-business'),
+                vision_2026: getVal('form-vision'),
+                location: getVal('form-location')
             };
 
             try {
@@ -753,13 +799,22 @@
                 const data = await response.json();
                 
                 if (response.ok) {
-                    // Show assigned seat
-                    document.getElementById('seat-display').textContent = data.seat || "自由席";
-                    
-                    // Show tablemates if available
-                    if (data.tablemates && data.tablemates.length > 0) {
-                        renderTablemates(data.tablemates, 'tablemates-list', 'tablemates-container');
+                    if (CONFIG.enable_seating !== false) {
+                        // Show assigned seat
+                        document.getElementById('seat-display').textContent = data.seat || "自由席";
+                        document.getElementById('seat-display').style.display = 'block';
+                        document.getElementById('success-seat-label').textContent = "您的座位已分配";
+                        document.getElementById('success-seat-label').style.display = 'block';
+                        
+                        // Show tablemates if available
+                        if (data.tablemates && data.tablemates.length > 0) {
+                            renderTablemates(data.tablemates, 'tablemates-list', 'tablemates-container');
+                        } else {
+                            document.getElementById('tablemates-container').classList.add('hidden');
+                        }
                     } else {
+                        document.getElementById('seat-display').style.display = 'none';
+                        document.getElementById('success-seat-label').textContent = "请自由入座";
                         document.getElementById('tablemates-container').classList.add('hidden');
                     }
                     

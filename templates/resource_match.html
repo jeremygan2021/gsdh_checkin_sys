@@ -9,9 +9,9 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         :root {
-            --primary-color: #00f2ff; /* Cyan from the AI sphere/text */
-            --secondary-color: #0066ff; /* Rich blue */
-            --bg-color: #050814; /* Deep space blue/black */
+            --primary-color: {{ config.primary_color }};
+            --secondary-color: {{ config.secondary_color }};
+            --bg-color: {{ config.bg_color }};
             --card-bg: rgba(12, 24, 50, 0.5); /* Glassy blue tint */
             --text-color: #ffffff;
             --text-muted: #b0c4de; /* Light blue-grey */
@@ -172,7 +172,7 @@
 <body>
     <div id="app" class="container pb-20">
         <!-- Header Image -->
-        <img src="/static/image.jpg" alt="Header Image" class="header-img" onerror="this.style.display='none'">
+        <img src="{{ config.header_image }}" alt="{{ config.event_title }}" class="header-img" onerror="this.style.display='none'">
 
         <!-- Header Info -->
         <div class="glass-card p-6 mb-6 text-center relative overflow-hidden">

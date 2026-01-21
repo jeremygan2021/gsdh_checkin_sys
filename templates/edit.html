@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ config.event_title }} - 信息修改</title>
+    <style>
+        :root {
+            --primary-color: {{ config.primary_color }};
+            --secondary-color: {{ config.secondary_color }};
+            --bg-color: {{ config.bg_color }};
+            --card-bg: rgba(12, 24, 50, 0.5); /* Glassy blue tint */
+            --text-color: #ffffff;
+            --text-muted: #b0c4de; /* Light blue-grey */
+            --accent-glow: rgba(0, 242, 255, 0.6);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            /* Deep radial gradient mimicking the poster's atmosphere */
+            background-image: 
+                radial-gradient(circle at 50% 0%, #1a3a75 0%, #050814 60%),
+                radial-gradient(circle at 85% 30%, rgba(0, 242, 255, 0.1) 0%, transparent 40%),
+                radial-gradient(circle at 15% 70%, rgba(0, 102, 255, 0.15) 0%, transparent 40%);
+            background-attachment: fixed;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow-x: hidden;
+        }
+
+        /* Add a subtle grid or tech-line overlay if desired, but keep it clean for now */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 600px;
+            padding: 30px 20px;
+            position: relative;
+            z-index: 1;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid rgba(0, 242, 255, 0.2);
+        }
+        
+        .header-img {
+            width: 100%;
+            max-height: 220px;
+            object-fit: cover;
+            border-radius: 12px;
+            margin-bottom: 25px;
+            box-shadow: 0 0 20px rgba(0, 242, 255, 0.2);
+            border: 1px solid rgba(0, 242, 255, 0.3);
+        }
+
+        h1 {
+            font-size: 2.4rem;
+            margin-bottom: 15px;
+            /* Poster style: Bold white/cyan gradient text */
+            background: linear-gradient(180deg, #ffffff 0%, #d0eaff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 900;
+            letter-spacing: 1px;
+            text-shadow: 0 0 30px rgba(0, 242, 255, 0.4);
+            position: relative;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 25px;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(0, 242, 255, 0.2);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(0, 242, 255, 0.05);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card:hover {
+            box-shadow: 0 8px 40px 0 rgba(0, 0, 0, 0.6), inset 0 0 20px rgba(0, 242, 255, 0.1);
+        }
+
+        h2 {
+            color: #fff;
+            text-align: center;
+            margin-bottom: 25px;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+
+        .input-group {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 10px;
+            font-size: 0.95rem;
+            color: var(--primary-color);
+            font-weight: 500;
+        }
+
+        input, textarea, select {
+            width: 100%;
+            padding: 14px 16px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(0, 242, 255, 0.3);
+            border-radius: 8px;
+            color: white;
+            font-size: 1rem;
+            outline: none;
+            transition: all 0.3s;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.3);
+        }
+
+        input:focus, textarea:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 15px rgba(0, 242, 255, 0.3), inset 0 2px 5px rgba(0,0,0,0.3);
+            background: rgba(0, 0, 0, 0.6);
+        }
+
+        /* Placeholder styling */
+        ::placeholder {
+            color: rgba(255, 255, 255, 0.3);
+        }
+
+        button {
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 8px;
+            /* Gradient button */
+            background: linear-gradient(90deg, #0051ff 0%, #00f2ff 100%);
+            color: #fff;
+            font-size: 1.1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            box-shadow: 0 4px 15px rgba(0, 242, 255, 0.3);
+            text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+        }
+
+        button:hover {
+            opacity: 1;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 242, 255, 0.5);
+            background: linear-gradient(90deg, #0040cc 0%, #00d0dd 100%);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            background: #2a3b55;
+            cursor: not-allowed;
+            opacity: 0.6;
+            box-shadow: none;
+            transform: none;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .error-msg {
+            color: #ff6b6b;
+            font-size: 0.9rem;
+            margin-top: 15px;
+            text-align: center;
+            background: rgba(255, 107, 107, 0.1);
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 107, 107, 0.3);
+        }
+
+        .success-msg {
+            color: #00ff88;
+            font-size: 1.8rem;
+            text-align: center;
+            margin: 20px 0 10px;
+            text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+        }
+        
+        /* Loading spinner */
+        .loader {
+            border: 3px solid rgba(255,255,255,0.1);
+            border-radius: 50%;
+            border-top: 3px solid var(--primary-color);
+            width: 20px;
+            height: 20px;
+            animation: spin 0.8s linear infinite;
+            display: inline-block;
+            vertical-align: middle;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .user-select-item {
+            padding: 15px;
+            background: rgba(255,255,255,0.05);
+            margin-bottom: 8px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+        }
+        
+        .user-select-item:hover {
+            background: rgba(0, 242, 255, 0.1);
+            border-color: var(--primary-color);
+        }
+
+    </style>
+    <style>
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 2px solid rgba(255,255,255,0.1);
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            opacity: 0.6;
+            transition: all 0.3s;
+        }
+        .tab.active {
+            opacity: 1;
+            border-bottom: 2px solid var(--primary-color);
+            margin-bottom: -2px;
+            color: var(--primary-color);
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <img src="{{ config.header_image }}" alt="{{ config.event_title }}" class="header-img" onerror="this.style.display='none'">
+            <div style="text-align: center; margin-bottom: 10px; color: var(--primary-color); font-size: 0.8rem; letter-spacing: 2px; font-weight: 600; opacity: 0.9;">
+                {{ config.event_sub_title }}
+            </div>
+            <h1>{{ config.event_title }}</h1>
+        </header>
+
+        <!-- Step 1: Search -->
+        <div id="step-search" class="card">
+            <h2 style="margin-bottom: 20px;">修改信息</h2>
+            <div class="input-group">
+                <label>请输入手机号码</label>
+                <input type="text" id="search-input" placeholder="例如：13800000000">
+            </div>
+            <button onclick="searchUser()" id="search-btn">查询</button>
+            <div id="search-error" class="error-msg hidden"></div>
+            <div id="user-list" class="hidden" style="margin-top: 15px;"></div>
+        </div>
+
+        <!-- Step 2: Edit Info -->
+        <div id="step-form" class="card hidden">
+            <h2 style="margin-bottom: 20px;">编辑信息</h2>
+            
+            <div class="tabs">
+                <div class="tab active" onclick="switchTab('signup')">报名信息</div>
+                <div class="tab" onclick="switchTab('checkin')">签到信息</div>
+            </div>
+
+            <form id="edit-form" onsubmit="submitEdit(event)">
+                <input type="hidden" id="gsdh-id">
+                <input type="hidden" id="current-is-signed" value="FALSE">
+                
+                <!-- Tab: Signup Info -->
+                <div id="tab-signup" class="tab-content active">
+                    <div class="input-group">
+                        <label>姓名</label>
+                        <input type="text" id="form-name" required>
+                    </div>
+
+                    <div class="input-group">
+                        <label>手机号码 (不可修改)</label>
+                        <input type="text" id="form-phone" required disabled style="opacity: 0.7;">
+                    </div>
+
+                    <div class="input-group">
+                        <label>单位名称</label>
+                        <input type="text" id="form-company" placeholder="点此输入">
+                    </div>
+                    
+                    <div class="input-group">
+                        <label>费用 (Fee)</label>
+                        <input type="text" id="form-fee" placeholder="例如：0">
+                    </div>
+                    
+                    <div class="input-group">
+                        <label>支付渠道</label>
+                        <input type="text" id="form-payment" placeholder="例如：wechat">
+                    </div>
+                </div>
+
+                <!-- Tab: Checkin Info -->
+                <div id="tab-checkin" class="tab-content">
+                    <div class="input-group">
+                        <label>职务</label>
+                        <input type="text" id="form-position" placeholder="点此输入">
+                    </div>
+
+                    <div class="input-group">
+                        <label>签到状态</label>
+                        <select id="form-is-signed">
+                            <option value="FALSE">未签到</option>
+                            <option value="TRUE">已签到</option>
+                        </select>
+                    </div>
+
+                    <div class="input-group">
+                        <label>座位号</label>
+                        <input type="text" id="form-location" placeholder="例如：第1桌 (仅已签到有效)">
+                    </div>
+
+                    <div class="input-group">
+                        <label>公司主要经营 / 业务</label>
+                        <textarea id="form-business" rows="2" placeholder="点此输入"></textarea>
+                    </div>
+
+                    <div class="input-group">
+                        <label>2026年业务愿景</label>
+                        <textarea id="form-vision" rows="3" placeholder="点此输入 (为了业务更好对接，最好表述清晰)"></textarea>
+                    </div>
+                </div>
+
+                <button type="submit" id="submit-btn" style="margin-top: 20px;">保存修改</button>
+                <button type="button" onclick="resetFlow()" style="margin-top: 15px; background: transparent; border: 1px solid rgba(255,255,255,0.2);">取消</button>
+            </form>
+            <div id="submit-error" class="error-msg hidden"></div>
+        </div>
+
+        <!-- Step 3: Success -->
+        <div id="step-success" class="card hidden" style="text-align: center; padding: 40px 20px;">
+            <div style="font-size: 4rem; margin-bottom: 20px;">✅</div>
+            <h2 class="success-msg">修改成功！</h2>
+            <p style="color: var(--text-muted); margin-bottom: 20px;">您的信息已更新</p>
+            
+            <button onclick="window.location.href='/'" style="margin-top: 30px;">返回首页</button>
+            <button onclick="resetFlow()" style="margin-top: 15px; background: transparent; border: 1px solid rgba(255,255,255,0.2);">继续修改</button>
+        </div>
+    </div>
+
+    <script>
+        async function searchUser() {
+            const query = document.getElementById('search-input').value.trim();
+            const btn = document.getElementById('search-btn');
+            const errorDiv = document.getElementById('search-error');
+            const listDiv = document.getElementById('user-list');
+
+            if (!query) {
+                errorDiv.textContent = "请输入查询内容";
+                errorDiv.classList.remove('hidden');
+                return;
+            }
+
+            // Reset UI
+            errorDiv.classList.add('hidden');
+            listDiv.classList.add('hidden');
+            listDiv.innerHTML = '';
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loader"></span> 查询中...';
+
+            try {
+                // Reuse existing search API
+                const response = await fetch(`/api/search?query=${encodeURIComponent(query)}`);
+                const data = await response.json();
+
+                if (response.ok) {
+                    if (data.multiple) {
+                        // Handle multiple results
+                        listDiv.classList.remove('hidden');
+                        listDiv.innerHTML = '<p style="margin-bottom:10px; color:var(--text-muted)">查询到多位嘉宾，请选择：</p>';
+                        data.users.forEach(user => {
+                            const item = document.createElement('div');
+                            item.className = 'user-select-item';
+                            item.innerHTML = `<strong>${user.name}</strong> <span style="font-size:0.8em; opacity:0.7">(${user.phone})</span>`;
+                            item.onclick = () => selectUser(user);
+                            listDiv.appendChild(item);
+                        });
+                    } else if (data.found) {
+                        // Single user found
+                        // Need to handle both signed and unsigned cases
+                        // api/search returns "user" object in both cases
+                        // if signed, "checkin_info" might be needed. 
+                        // The /api/search response structure for signed user: 
+                        // { found: true, user: {...}, already_signed: true, seat: ..., tablemates: ... }
+                        // Ideally we should fetch full details if already signed. 
+                        // Let's modify selectUser to handle this.
+                        selectUser(data.user, data.already_signed);
+                    } else {
+                        errorDiv.textContent = "未找到该用户";
+                        errorDiv.classList.remove('hidden');
+                    }
+                } else {
+                    errorDiv.textContent = data.message || "查询失败";
+                    errorDiv.classList.remove('hidden');
+                }
+            } catch (err) {
+                errorDiv.textContent = "网络错误，请稍后重试";
+                errorDiv.classList.remove('hidden');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '查询';
+            }
+        }
+
+        async function selectUser(user, alreadySigned) {
+            // Populate form
+            document.getElementById('gsdh-id').value = user.new_id;
+            document.getElementById('form-name').value = user.name;
+            document.getElementById('form-phone').value = user.phone;
+            
+            // If user is already signed, we should try to get their checkin info if possible.
+            // However, /api/search currently doesn't return the full checkin_info fields (like position, business_scope) in the 'user' object directly?
+            // Wait, looking at main.py:
+            // if signed: returns "user": user (from gsdh_data)
+            // It doesn't return checkin_info details in 'user'.
+            // We might need to fetch current details.
+            // But wait, if they are signed, /api/search returns { ... seat: ..., tablemates: ... }
+            // It doesn't return the fields we want to edit (position, vision_2026 etc).
+            // We might need to create a new endpoint to get full details OR rely on what we have.
+            // Actually, let's use the 'industry_company' from gsdh_data as initial value for company.
+            
+            document.getElementById('form-company').value = user.industry_company || ''; 
+            
+            // If we want to support editing existing checkin info, we need to fetch it.
+            // I'll add a call to get user details if already signed.
+            // We fetch details anyway to get signed status and location
+            try {
+                const res = await fetch(`/api/get-user-details?phone=${user.phone}`);
+                if (res.ok) {
+                    const details = await res.json();
+                    if (details.success) {
+                        document.getElementById('form-company').value = details.data.company_name || user.industry_company || '';
+                        document.getElementById('form-position').value = details.data.position || '';
+                        document.getElementById('form-business').value = details.data.business_scope || '';
+                        document.getElementById('form-vision').value = details.data.vision_2026 || '';
+                        document.getElementById('form-is-signed').value = details.data.is_signed || 'FALSE';
+                        document.getElementById('current-is-signed').value = details.data.is_signed || 'FALSE';
+                        document.getElementById('form-location').value = details.data.location || '';
+                        document.getElementById('form-fee').value = details.data.fee || '';
+                        document.getElementById('form-payment').value = details.data.payment_channel || '';
+                        
+                        // Update name if it's different in checkin info
+                        if (details.data.name) document.getElementById('form-name').value = details.data.name;
+                    }
+                }
+            } catch (e) {
+                console.error("Failed to fetch details", e);
+            }
+
+            // Switch steps
+            document.getElementById('step-search').classList.add('hidden');
+            document.getElementById('step-form').classList.remove('hidden');
+            // Default to signup tab
+            switchTab('signup');
+        }
+
+        function switchTab(tabName) {
+            // Update tabs
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            if (tabName === 'signup') {
+                document.querySelector('.tab:nth-child(1)').classList.add('active');
+            } else {
+                document.querySelector('.tab:nth-child(2)').classList.add('active');
+            }
+
+            // Update content
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+        }
+
+        async function submitEdit(e) {
+            e.preventDefault();
+            const btn = document.getElementById('submit-btn');
+            const errorDiv = document.getElementById('submit-error');
+            
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loader"></span> 保存中...';
+            errorDiv.classList.add('hidden');
+
+            const payload = {
+                gsdh_id: document.getElementById('gsdh-id').value,
+                name: document.getElementById('form-name').value,
+                phone: document.getElementById('form-phone').value,
+                company_name: document.getElementById('form-company').value,
+                position: document.getElementById('form-position').value,
+                business_scope: document.getElementById('form-business').value,
+                vision_2026: document.getElementById('form-vision').value,
+                is_signed: document.getElementById('form-is-signed').value,
+                location: document.getElementById('form-location').value,
+                fee: document.getElementById('form-fee').value,
+                payment_channel: document.getElementById('form-payment').value
+            };
+            const currentSigned = document.getElementById('current-is-signed').value || 'FALSE';
+            const desiredSigned = payload.is_signed || 'FALSE';
+
+            try {
+                let checkinSeat = null;
+                if (currentSigned !== desiredSigned) {
+                    if (desiredSigned === 'TRUE') {
+                        // 执行签到（创建签到记录并分配座位）
+                        const resCheckin = await fetch('/api/checkin', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+                        const dataCheckin = await resCheckin.json();
+                        if (!(resCheckin.ok && dataCheckin.success)) {
+                            throw new Error(dataCheckin.message || '签到失败');
+                        }
+                        checkinSeat = dataCheckin.seat || null;
+                        // 更新当前状态缓存
+                        document.getElementById('current-is-signed').value = 'TRUE';
+                        document.getElementById('form-is-signed').value = 'TRUE';
+                    } else {
+                        // 取消签到（删除签到记录并置为未签到）
+                        const resUncheck = await fetch('/api/uncheckin', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                gsdh_id: payload.gsdh_id,
+                                name: payload.name,
+                                company_name: payload.company_name
+                            })
+                        });
+                        const dataUncheck = await resUncheck.json();
+                        if (!(resUncheck.ok && dataUncheck.success)) {
+                            throw new Error(dataUncheck.message || '取消签到失败');
+                        }
+                        // 更新当前状态缓存
+                        document.getElementById('current-is-signed').value = 'FALSE';
+                        document.getElementById('form-is-signed').value = 'FALSE';
+                    }
+                }
+
+                // 覆盖更新其余信息（不新增）
+                const payloadForUpdate = { ...payload };
+                if (desiredSigned === 'TRUE') {
+                    // 避免覆盖空座位：若表单未填座位，则保留签到自动分配的座位
+                    if (!payloadForUpdate.location && checkinSeat) {
+                        payloadForUpdate.location = checkinSeat;
+                    }
+                }
+
+                const response = await fetch('/api/update-user', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payloadForUpdate)
+                });
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    document.getElementById('step-form').classList.add('hidden');
+                    document.getElementById('step-success').classList.remove('hidden');
+                } else {
+                    errorDiv.textContent = data.message || "保存失败";
+                    errorDiv.classList.remove('hidden');
+                }
+            } catch (err) {
+                errorDiv.textContent = "网络错误，请稍后重试";
+                errorDiv.classList.remove('hidden');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '保存修改';
+            }
+        }
+
+        function resetFlow() {
+            document.getElementById('step-success').classList.add('hidden');
+            document.getElementById('step-form').classList.add('hidden');
+            document.getElementById('step-search').classList.remove('hidden');
+            document.getElementById('search-input').value = '';
+            document.getElementById('user-list').innerHTML = '';
+            document.getElementById('edit-form').reset();
+        }
+    </script>
+</body>
+</html>
