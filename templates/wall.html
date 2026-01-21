@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ config.event_title }} - 签到大屏</title>
+    <style>
+        :root {
+            --primary-color: {{ config.primary_color }};
+            --secondary-color: {{ config.secondary_color }};
+            --bg-color: {{ config.bg_color }};
+            --card-bg: rgba(12, 24, 50, 0.6);
+            --text-color: #ffffff;
+            --header-img: url('{{ config.header_image }}');
+            --bg-opacity: {{ config.wall_config.bg_opacity if config.wall_config and config.wall_config.bg_opacity is not none else 0.3 }};
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            position: relative;
+        }
+
+        /* Simplified Background */
+        .bg-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: var(--header-img);
+            background-size: cover;
+            background-position: center;
+            opacity: var(--bg-opacity);
+            z-index: -3;
+            filter: blur(10px); /* Increased blur for cleaner look */
+        }
+
+        /* Subtle overlay to ensure text contrast */
+        .clean-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.2);
+            z-index: -2;
+        }
+
+        /* Header */
+        header {
+            position: absolute;
+            top: 30px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            z-index: 20; /* Above bubbles */
+            pointer-events: none; /* Let clicks pass through */
+        }
+
+        h1 {
+            font-size: 3rem;
+            color: #ffffff;
+            font-weight: 900;
+            text-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            margin: 0;
+            letter-spacing: 2px;
+        }
+        
+        .subtitle {
+            font-size: 1.2rem;
+            color: var(--primary-color);
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+            opacity: 0.9;
+            text-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Container for User Bubbles */
+        #bubble-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            overflow: hidden;
+        }
+
+        .user-bubble {
+            position: absolute;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 80px;
+            height: 100px;
+            transition: transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.5s ease;
+            will-change: transform, left, top;
+        }
+
+        .bubble-avatar {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--secondary-color), var(--primary-color));
+            border: 2px solid rgba(255, 255, 255, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1.2rem;
+            color: #fff;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+            margin-bottom: 5px;
+            overflow: hidden;
+        }
+        
+        .bubble-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .bubble-name {
+            font-size: 0.9rem;
+            color: #fff;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100px;
+            text-align: center;
+            background: rgba(0,0,0,0.3);
+            padding: 2px 6px;
+            border-radius: 10px;
+        }
+
+        /* Central Spotlight Card */
+        .spotlight-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -45%);
+            width: 80%;
+            max-width: 900px;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        .spotlight-card {
+            background: rgba(10, 20, 40, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            padding: 50px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            text-align: center;
+            opacity: 0;
+            transform: scale(0.9) translateY(20px);
+            transition: all 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+
+        .spotlight-card.active {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+        }
+
+        .user-info {
+            font-size: 1.8rem;
+            color: #b0c4de;
+            margin-bottom: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        .user-avatar-large {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--secondary-color), var(--primary-color));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 2rem;
+            color: #fff;
+            border: 3px solid rgba(255,255,255,0.5);
+        }
+
+        .company-name {
+            font-size: 3rem;
+            font-weight: 800;
+            color: #fff;
+            margin-bottom: 20px;
+            background: linear-gradient(90deg, #fff, #b3d9ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* Stats Counter */
+        .stats-counter {
+            position: absolute;
+            bottom: 30px;
+            right: 40px;
+            text-align: right;
+            z-index: 20;
+            background: rgba(0,0,0,0.3);
+            padding: 10px 20px;
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .stats-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+
+        .stats-label {
+            font-size: 0.8rem;
+            color: #aaa;
+        }
+
+    </style>
+</head>
+<body>
+    <header>
+        <div class="subtitle">{{ config.event_sub_title }}</div>
+        <h1>{{ config.event_title }}</h1>
+    </header>
+
+    <div class="bg-layer"></div>
+    <div class="clean-overlay"></div>
+    
+    <div id="bubble-container"></div>
+
+    {% set wc = config.wall_config if config.wall_config else {} %}
+    {% set show = wc.show_fields if wc.show_fields else {} %}
+
+    <div class="spotlight-container">
+        <div class="spotlight-card" id="card">
+            <div class="user-info">
+                {% if show.name != false %}
+                <div class="user-avatar-large" id="card-avatar">?</div>
+                <div>
+                    <span id="card-name" style="font-weight: bold; color: white;"></span>
+                    {% if show.position != false %}
+                    <span id="card-position" style="font-size: 0.8em; margin-left: 10px; color: var(--primary-color);"></span>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+            
+            {% if show.company_name != false %}
+            <div class="company-name" id="card-company"></div>
+            {% endif %}
+            
+            {% if show.vision_2026 != false or show.business_scope != false %}
+            <div id="card-extra" style="font-size: 1.4rem; color: #dbe4ff; font-style: italic; margin-top: 20px;"></div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="stats-counter">
+        <div class="stats-number" id="checkin-count">0</div>
+        <div class="stats-label">已签到嘉宾</div>
+    </div>
+
+    <script>
+        // --- Configuration ---
+        const CONFIG = {
+            gridThreshold: 20, // Switch to grid when users > 20
+            bubbleSize: 80,    // Width of bubble
+            bubbleHeight: 100, // Height of bubble (including name)
+            speed: 1.5,        // Floating speed
+        };
+
+        const SHOW_VISION = {{ 'true' if show.vision_2026 != false else 'false' }};
+        const SHOW_SCOPE = {{ 'true' if show.business_scope != false else 'false' }};
+
+        // --- State ---
+        let users = [];
+        let bubbles = []; // Array of UserBubble instances
+        let currentIndex = 0;
+        let isGridMode = false;
+        
+        const container = document.getElementById('bubble-container');
+        let width = window.innerWidth;
+        let height = window.innerHeight;
+
+        window.addEventListener('resize', () => {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            if (isGridMode) arrangeGrid();
+        });
+
+        // --- Class: UserBubble ---
+        class UserBubble {
+            constructor(user) {
+                this.user = user;
+                this.element = document.createElement('div');
+                this.element.className = 'user-bubble';
+                
+                // Content
+                const initial = user.name ? user.name.charAt(0) : '?';
+                this.element.innerHTML = `
+                    <div class="bubble-avatar">${initial}</div>
+                    <div class="bubble-name">${user.name || '嘉宾'}</div>
+                `;
+                
+                container.appendChild(this.element);
+
+                // Initial Position (Random)
+                this.x = Math.random() * (width - CONFIG.bubbleSize);
+                this.y = Math.random() * (height - CONFIG.bubbleHeight);
+                
+                // Velocity for floating
+                this.vx = (Math.random() - 0.5) * CONFIG.speed;
+                this.vy = (Math.random() - 0.5) * CONFIG.speed;
+
+                // Set initial DOM position
+                this.updatePosition();
+            }
+
+            updatePosition() {
+                this.element.style.transform = `translate(${this.x}px, ${this.y}px)`;
+            }
+
+            float() {
+                if (isGridMode) return; // Do not float in grid mode
+
+                this.x += this.vx;
+                this.y += this.vy;
+
+                // Bounce off edges
+                if (this.x <= 0 || this.x >= width - CONFIG.bubbleSize) this.vx *= -1;
+                if (this.y <= 0 || this.y >= height - CONFIG.bubbleHeight) this.vy *= -1;
+
+                this.updatePosition();
+            }
+
+            moveTo(targetX, targetY) {
+                // Use CSS transition for smooth movement to grid
+                this.x = targetX;
+                this.y = targetY;
+                this.updatePosition();
+            }
+        }
+
+        // --- Logic: Layout Manager ---
+        function updateLayout() {
+            const count = bubbles.length;
+            const wasGrid = isGridMode;
+            isGridMode = count > CONFIG.gridThreshold;
+
+            if (isGridMode) {
+                arrangeGrid();
+            } else {
+                // If switching back to floating (unlikely but possible), ensure animation loop is running
+                if (wasGrid) {
+                    // Re-randomize velocities if needed or just let them float from current pos
+                }
+            }
+        }
+
+        function arrangeGrid() {
+            // Simple Grid Algorithm
+            const count = bubbles.length;
+            const cols = Math.ceil(Math.sqrt(count * (width / height)));
+            const rows = Math.ceil(count / cols);
+            
+            const cellW = width / cols;
+            const cellH = height / rows;
+
+            bubbles.forEach((bubble, index) => {
+                const col = index % cols;
+                const row = Math.floor(index / cols);
+                
+                // Center in cell
+                const targetX = col * cellW + (cellW - CONFIG.bubbleSize) / 2;
+                const targetY = row * cellH + (cellH - CONFIG.bubbleHeight) / 2;
+                
+                bubble.moveTo(targetX, targetY);
+            });
+        }
+
+        // --- Animation Loop ---
+        function animate() {
+            if (!isGridMode) {
+                bubbles.forEach(b => b.float());
+            }
+            requestAnimationFrame(animate);
+        }
+        animate(); // Start loop
+
+        // --- Data Fetching ---
+        async function fetchData() {
+            try {
+                const res = await fetch('/api/wall/data');
+                const json = await res.json();
+                if (json.success) {
+                    const newUsers = json.data;
+                    document.getElementById('checkin-count').textContent = newUsers.length;
+
+                    // Detect new users
+                    // Assuming API returns all users. We check by ID or Name (assuming unique for now or just length)
+                    // For simplicity, we just check if length increased. 
+                    // In production, we should map IDs.
+                    
+                    if (newUsers.length > users.length) {
+                        // Add new bubbles
+                        for (let i = users.length; i < newUsers.length; i++) {
+                            const u = newUsers[i];
+                            bubbles.push(new UserBubble(u));
+                        }
+                        
+                        // Update local list
+                        users = newUsers;
+                        
+                        // Update Layout Mode
+                        updateLayout();
+                        
+                        // Trigger Spotlight for the newest user (or cycle)
+                        // If it's the first load, start the cycle loop
+                        if (currentIndex === 0 && users.length > 0) {
+                            startSpotlight();
+                        }
+                    } else if (users.length === 0 && newUsers.length > 0) {
+                        // First load
+                        users = newUsers;
+                        users.forEach(u => bubbles.push(new UserBubble(u)));
+                        updateLayout();
+                        startSpotlight();
+                    }
+                }
+            } catch (e) {
+                console.error("Fetch error", e);
+            }
+        }
+
+        // --- Spotlight Logic ---
+        function startSpotlight() {
+            showNextUser();
+            setInterval(showNextUser, 8000);
+        }
+
+        function showNextUser() {
+            if (users.length === 0) return;
+
+            const card = document.getElementById('card');
+            card.classList.remove('active');
+
+            setTimeout(() => {
+                const user = users[currentIndex];
+                currentIndex = (currentIndex + 1) % users.length;
+
+                if(document.getElementById('card-name')) document.getElementById('card-name').textContent = user.name;
+                if(document.getElementById('card-position')) document.getElementById('card-position').textContent = user.position || '';
+                if(document.getElementById('card-company')) document.getElementById('card-company').textContent = user.company_name || '嘉宾';
+                if(document.getElementById('card-avatar')) document.getElementById('card-avatar').textContent = user.name ? user.name.charAt(0) : '?';
+                
+                const extraDiv = document.getElementById('card-extra');
+                if (extraDiv) {
+                    if (SHOW_VISION && user.vision_2026) {
+                        extraDiv.textContent = "🎯 " + user.vision_2026;
+                        extraDiv.style.display = 'block';
+                    } else if (SHOW_SCOPE && user.business_scope) {
+                        extraDiv.textContent = user.business_scope;
+                        extraDiv.style.display = 'block';
+                    } else {
+                        extraDiv.style.display = 'none';
+                    }
+                }
+
+                card.classList.add('active');
+            }, 800);
+        }
+
+        // Initial Load
+        fetchData();
+        setInterval(fetchData, 5000); // Check every 5s
+
+    </script>
+</body>
+</html>

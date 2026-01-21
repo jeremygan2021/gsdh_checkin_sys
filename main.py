@@ -46,6 +46,16 @@ DEFAULT_CONFIG = {
         "position": {"label": "职务", "show": True, "required": False},
         "business_scope": {"label": "公司主要经营 / 业务", "show": True, "required": False},
         "vision_2026": {"label": "2026年业务愿景", "show": True, "required": False}
+    },
+    "wall_config": {
+        "show_fields": {
+             "name": True,
+             "company_name": True,
+             "position": True,
+             "vision_2026": True,
+             "business_scope": True
+        },
+        "bg_opacity": 0.3
     }
 }
 
@@ -1054,6 +1064,44 @@ async def admin_page(request: Request):
     """
     secret = os.getenv("ADD_USER_SECRET", "123quant-speed")
     return templates.TemplateResponse("admin.html", {"request": request, "secret": secret})
+
+@app.get("/wall", response_class=HTMLResponse)
+async def wall_page(request: Request):
+    """
+    渲染签到大屏页面。
+    """
+    global CONFIG
+    CONFIG = load_config()
+    return templates.TemplateResponse("wall.html", {"request": request, "config": CONFIG})
+
+@app.get("/api/wall/data")
+def get_wall_data():
+    """
+    获取大屏所需的数据：
+    1. 所有已签到用户的 Company Name, Vision, Business Scope
+    2. 过滤掉空数据
+    """
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        # 获取最新的签到数据（按时间倒序）
+        query = """
+        SELECT name, company_name, position, business_scope, vision_2026, social_point
+        FROM checkin_info
+        ORDER BY created_at DESC
+        """
+        cur.execute(query)
+        rows = cur.fetchall()
+        
+        cur.close()
+        release_db_connection(conn)
+        
+        return {"success": True, "data": rows}
+    except Exception as e:
+        if 'conn' in locals() and conn:
+            release_db_connection(conn)
+        return JSONResponse(content={"success": False, "message": str(e)}, status_code=500)
 
 @app.get("/api/admin/config")
 def get_config():
