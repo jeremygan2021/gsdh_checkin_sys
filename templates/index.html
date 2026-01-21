@@ -799,7 +799,7 @@
                 const data = await response.json();
                 
                 if (response.ok) {
-                    document.getElementById('success-btn').textContent = payload.name + '前往活动';
+                    document.getElementById('success-btn').textContent = payload.name + '/点击进入活动大厅';
                     if (CONFIG.enable_seating !== false) {
                         // Show assigned seat
                         document.getElementById('seat-display').textContent = data.seat || "自由席";

@@ -376,6 +376,8 @@
             speed: 1.5,        // Floating speed
         };
 
+        const isMobile = () => window.innerWidth <= 768;
+
         const SHOW_VISION = {{ 'true' if show.vision_2026 != false else 'false' }};
         const SHOW_SCOPE = {{ 'true' if show.business_scope != false else 'false' }};
 
@@ -630,7 +632,7 @@
                              startRotationTimer();
                              
                              // Trigger spotlight for newest
-                             if (currentIndex === 0 && allUsers.length > 0) {
+                             if (currentIndex === 0 && allUsers.length > 0 && !isMobile()) {
                                  // Maybe spotlight the very first one
                                  updateCard(allUsers[0]);
                                  // Restart spotlight loop
@@ -647,7 +649,7 @@
                         if (bubbles.length === 0 && allUsers.length > 0) {
                              updateDisplay();
                              startRotationTimer();
-                             startSpotlight();
+                             if (!isMobile()) startSpotlight();
                         }
                     }
                 }
@@ -687,15 +689,16 @@
         }
 
         function startSpotlight() {
+            if (isMobile()) return;
             if (spotlightInterval) clearInterval(spotlightInterval);
             showNextUser();
             spotlightInterval = setInterval(showNextUser, 8000);
         }
 
         function showNextUser() {
-            if (users.length === 0) return;
-            const user = users[currentIndex];
-            currentIndex = (currentIndex + 1) % users.length;
+            if (displayedUsers.length === 0) return;
+            const user = displayedUsers[currentIndex];
+            currentIndex = (currentIndex + 1) % displayedUsers.length;
             updateCard(user);
         }
         
@@ -706,10 +709,12 @@
             // Show clicked user immediately
             updateCard(user);
             
-            // Resume auto-rotation after 15 seconds
-            spotlightInterval = setTimeout(() => {
-                startSpotlight();
-            }, 15000);
+            // Resume auto-rotation after 15 seconds (only on desktop)
+            if (!isMobile()) {
+                spotlightInterval = setTimeout(() => {
+                    startSpotlight();
+                }, 15000);
+            }
         }
 
         // Initial Load
