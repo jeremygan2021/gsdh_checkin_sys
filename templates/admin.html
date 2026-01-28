@@ -365,6 +365,51 @@
         </div>
 
         <div class="card">
+            <h2>支付设置 (Payment)</h2>
+            <div class="checkbox-wrapper">
+                <input type="checkbox" id="enable_payment">
+                <label for="enable_payment">开启付费报名 (Enable Paid Registration)</label>
+            </div>
+            <p style="font-size: 0.9em; color: var(--text-muted); margin-left: 30px; margin-bottom: 15px;">
+                开启后，<a href="/ticket" target="_blank" style="color: var(--primary-color);">/ticket</a> 页面将开放访问。
+            </p>
+            <div class="form-group">
+                <label>支付金额 (元)</label>
+                <input type="number" id="payment_amount" step="0.01" min="0.01">
+            </div>
+            
+            <h3 style="color: #b0c4de; margin: 20px 0 15px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px; font-size: 1rem;">微信支付配置 (WeChat Pay V3)</h3>
+            
+            <div class="form-group">
+                <label>AppID</label>
+                <input type="text" id="wx_appid" placeholder="wx...">
+            </div>
+            <div class="form-group">
+                <label>MchID (商户号)</label>
+                <input type="text" id="wx_mchid" placeholder="16...">
+            </div>
+            <div class="form-group">
+                <label>API V3 Key</label>
+                <div class="input-group">
+                    <input type="password" id="wx_api_v3_key" placeholder="32位密钥">
+                    <button class="toggle-btn" aria-label="显示/隐藏" data-target="wx_api_v3_key" onclick="togglePasswordVisibility(this)">显示</button>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Serial No (证书序列号)</label>
+                <input type="text" id="wx_serial_no" placeholder="证书序列号">
+            </div>
+            <div class="form-group">
+                <label>商户私钥路径 (Private Key Path)</label>
+                <input type="text" id="wx_private_key_path" placeholder="cert/apiclient_key.pem">
+            </div>
+            <div class="form-group">
+                <label>回调地址 (Notify URL)</label>
+                <input type="text" id="wx_notify_url" placeholder="https://your-domain.com/api/payment/notify">
+            </div>
+        </div>
+
+        <div class="card">
             <h2>数据库设置</h2>
             <div class="form-group">
                 <label>数据库地址 (Host)</label>
@@ -390,6 +435,10 @@
                 <input type="text" id="db_name">
             </div>
             <button class="btn-success" onclick="testDbConnection()">测试连接</button>
+            <button class="btn-lg" style="margin-left: 10px; background: linear-gradient(90deg, #17a2b8 0%, #138496 100%);" onclick="initDatabase()">初始化/迁移结构</button>
+            <p style="font-size: 0.9em; color: var(--text-muted); margin-top: 10px;">
+                提示：切换到新数据库后，点击“初始化/迁移结构”可自动创建表结构（不会删除现有数据）。
+            </p>
         </div>
 
         <div class="card">
@@ -535,6 +584,18 @@
                 // Checkin Config
                 document.getElementById('enable_ticket_validation').checked = config.enable_ticket_validation !== false;
 
+                // Payment Config
+                document.getElementById('enable_payment').checked = config.enable_payment === true;
+                document.getElementById('payment_amount').value = config.payment_amount || 0.01;
+
+                const wx = config.wechat_pay_config || {};
+                document.getElementById('wx_appid').value = wx.appid || '';
+                document.getElementById('wx_mchid').value = wx.mchid || '';
+                document.getElementById('wx_api_v3_key').value = wx.api_v3_key || '';
+                document.getElementById('wx_serial_no').value = wx.serial_no || '';
+                document.getElementById('wx_private_key_path').value = wx.private_key_path || '';
+                document.getElementById('wx_notify_url').value = wx.notify_url || '';
+
                 // Seating Config
                 document.getElementById('enable_seating').checked = config.enable_seating !== false; // Default true
                 document.getElementById('total_tables').value = config.total_tables || 14;
@@ -649,6 +710,18 @@
                 // Checkin Config
                 enable_ticket_validation: document.getElementById('enable_ticket_validation').checked,
 
+                // Payment Config
+                enable_payment: document.getElementById('enable_payment').checked,
+                payment_amount: parseFloat(document.getElementById('payment_amount').value),
+                wechat_pay_config: {
+                    appid: document.getElementById('wx_appid').value,
+                    mchid: document.getElementById('wx_mchid').value,
+                    api_v3_key: document.getElementById('wx_api_v3_key').value,
+                    serial_no: document.getElementById('wx_serial_no').value,
+                    private_key_path: document.getElementById('wx_private_key_path').value,
+                    notify_url: document.getElementById('wx_notify_url').value
+                },
+
                 // Seating Config
                 enable_seating: document.getElementById('enable_seating').checked,
                 total_tables: parseInt(document.getElementById('total_tables').value),
@@ -742,6 +815,24 @@
                     showMessage('图片上传成功，请记得点击保存设置', 'success');
                 } else {
                     showMessage('上传失败: ' + data.message, 'error');
+                }
+            } catch (e) {
+                showMessage('网络错误', 'error');
+            }
+        }
+
+        async function initDatabase() {
+            if (!confirm('确定要在当前配置的数据库中初始化/迁移表结构吗？\n（此操作安全，不会删除现有数据）')) return;
+            
+            try {
+                const res = await fetch('/api/admin/init-db', {
+                    method: 'POST'
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    showMessage('数据库结构初始化/迁移成功', 'success');
+                } else {
+                    showMessage('初始化失败: ' + data.message, 'error');
                 }
             } catch (e) {
                 showMessage('网络错误', 'error');

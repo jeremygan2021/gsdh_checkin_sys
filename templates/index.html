@@ -490,6 +490,17 @@
             <button onclick="searchUser()" id="search-btn">签到</button>
             <div id="search-error" class="error-msg hidden"></div>
             <div id="user-list" class="hidden" style="margin-top: 15px;"></div>
+
+            {% if config.enable_payment %}
+            <div style="margin-top: 25px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.1); text-align: center;">
+                <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 15px;">尚未购票？</p>
+                <a href="/ticket" style="text-decoration: none;">
+                    <button style="background: transparent; border: 1px solid var(--primary-color); color: var(--primary-color);">
+                        购票报名 (¥{{ config.payment_amount }})
+                    </button>
+                </a>
+            </div>
+            {% endif %}
         </div>
 
         <!-- Step 2: Fill Info -->

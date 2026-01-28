@@ -1,14 +1,24 @@
 {
-    "event_title": "玉溪青年．玉见跨境",
-    "event_sub_title": "跨境电商企业交流沙龙",
+    "event_title": "AI共生大会",
+    "event_sub_title": "云南AI大会",
     "event_time": "等待输入",
     "event_location": "玉溪青花街三生咖啡酒吧",
     "event_content": "等待输入",
     "primary_color": "#00f2ff",
     "secondary_color": "#0066ff",
     "bg_color": "#050814",
-    "header_image": "/static/b5ccc4d50b6ce0aca8ddfef494edbbc0.jpg",
+    "header_image": "/static/image1.jpg",
     "enable_ticket_validation": false,
+    "enable_payment": false,
+    "payment_amount": 0.01,
+    "wechat_pay_config": {
+        "appid": "",
+        "mchid": "",
+        "api_v3_key": "",
+        "serial_no": "",
+        "private_key_path": "",
+        "notify_url": ""
+    },
     "enable_seating": false,
     "total_tables": 14,
     "max_per_table": 10,
@@ -56,9 +66,9 @@
             "business_scope": true
         }
     },
-    "db_host": "6.6.6.86",
+    "db_host": "6.6.6.66",
     "db_port": "5432",
-    "db_user": "zhao",
-    "db_password": "123zhao",
-    "db_name": "zhao"
+    "db_user": "AI_event",
+    "db_password": "123AI_event",
+    "db_name": "AI_event"
 }

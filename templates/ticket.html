@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>购票报名 - {{ config.event_title }}</title>
+    <style>
+        :root {
+            --primary-color: {{ config.primary_color }};
+            --secondary-color: {{ config.secondary_color }};
+            --bg-color: {{ config.bg_color }};
+            --card-bg: rgba(12, 24, 50, 0.7);
+            --text-color: #ffffff;
+            --input-bg: rgba(0, 0, 0, 0.4);
+            --border-color: rgba(0, 242, 255, 0.3);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            background-image: 
+                radial-gradient(circle at 50% 0%, #1a3a75 0%, #050814 60%),
+                radial-gradient(circle at 85% 30%, rgba(0, 242, 255, 0.1) 0%, transparent 40%),
+                radial-gradient(circle at 15% 70%, rgba(0, 102, 255, 0.15) 0%, transparent 40%);
+            background-attachment: fixed;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 600px;
+            margin-top: 40px;
+            margin-bottom: 60px;
+            animation: fadeIn 0.8s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            margin-bottom: 10px;
+            background: linear-gradient(180deg, #ffffff 0%, #d0eaff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 900;
+            text-shadow: 0 0 20px rgba(0, 242, 255, 0.4);
+        }
+
+        .subtitle {
+            font-size: 1rem;
+            color: var(--primary-color);
+            letter-spacing: 2px;
+            opacity: 0.9;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 20px;
+            padding: 30px;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border-color);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 10px;
+            color: var(--primary-color);
+            font-size: 0.95rem;
+            font-weight: bold;
+        }
+
+        input[type="text"], input[type="tel"] {
+            width: 100%;
+            padding: 15px;
+            background: var(--input-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            color: white;
+            font-size: 1.1rem;
+            outline: none;
+            transition: all 0.3s;
+        }
+
+        input:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 15px rgba(0, 242, 255, 0.2);
+            background: rgba(0, 0, 0, 0.6);
+        }
+
+        .submit-btn {
+            width: 100%;
+            padding: 18px;
+            background: linear-gradient(90deg, #0051ff 0%, #00f2ff 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(0, 242, 255, 0.3);
+            margin-top: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px rgba(0, 242, 255, 0.5);
+        }
+
+        .submit-btn:disabled {
+            background: #444;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .price-tag {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 1.2rem;
+            color: #fff;
+        }
+
+        .price-amount {
+            font-size: 2rem;
+            color: #ffaa00;
+            font-weight: bold;
+            margin: 0 5px;
+        }
+
+        #message {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 12px;
+            text-align: center;
+            display: none;
+            font-weight: bold;
+        }
+
+        .success {
+            background: rgba(40, 167, 69, 0.2);
+            border: 1px solid #28a745;
+            color: #28a745;
+        }
+
+        .error {
+            background: rgba(220, 53, 69, 0.2);
+            border: 1px solid #dc3545;
+            color: #ff6b6b;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>{{ config.event_title }}</h1>
+            <div class="subtitle">在线报名通道</div>
+        </header>
+
+        <div class="card">
+            <div class="price-tag">
+                报名费用 <span class="price-amount">¥{{ config.payment_amount }}</span>
+            </div>
+
+            <form id="paymentForm" onsubmit="handlePayment(event)">
+                <div class="form-group">
+                    <label>姓名 *</label>
+                    <input type="text" id="name" required placeholder="请输入您的姓名">
+                </div>
+                <div class="form-group">
+                    <label>手机号码 *</label>
+                    <input type="tel" id="phone" required placeholder="请输入您的手机号码" pattern="[0-9]{11}">
+                </div>
+                <div class="form-group">
+                    <label>单位名称</label>
+                    <input type="text" id="company_name" placeholder="请输入单位名称">
+                </div>
+                <div class="form-group">
+                    <label>职务</label>
+                    <input type="text" id="position" placeholder="请输入您的职务">
+                </div>
+                <div class="form-group">
+                    <label>业务范围</label>
+                    <input type="text" id="business_scope" placeholder="简述主要业务">
+                </div>
+                
+                <button type="submit" class="submit-btn" id="submitBtn">
+                    立即支付报名
+                </button>
+            </form>
+            
+            <div id="message"></div>
+        </div>
+    </div>
+
+    <script>
+        async function handlePayment(e) {
+            e.preventDefault();
+            
+            const btn = document.getElementById('submitBtn');
+            const msg = document.getElementById('message');
+            const originalText = btn.innerHTML;
+            
+            // Validate
+            const name = document.getElementById('name').value.trim();
+            const phone = document.getElementById('phone').value.trim();
+            
+            if (!name || !phone) {
+                showMessage('请填写必填项', 'error');
+                return;
+            }
+            
+            // Loading State
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading"></span> 处理中...';
+            msg.style.display = 'none';
+            
+            const data = {
+                name: name,
+                phone: phone,
+                company_name: document.getElementById('company_name').value.trim(),
+                position: document.getElementById('position').value.trim(),
+                business_scope: document.getElementById('business_scope').value.trim()
+            };
+            
+            try {
+                const res = await fetch('/api/payment/h5', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await res.json();
+                
+                if (result.success && result.h5_url) {
+                    showMessage('正在跳转支付...', 'success');
+                    // Redirect to WeChat Pay
+                    window.location.href = result.h5_url;
+                } else {
+                    showMessage(result.message || '支付请求失败', 'error');
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                }
+            } catch (err) {
+                console.error(err);
+                showMessage('网络请求错误，请重试', 'error');
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+        
+        function showMessage(text, type) {
+            const msg = document.getElementById('message');
+            msg.textContent = text;
+            msg.className = type;
+            msg.style.display = 'block';
+        }
+    </script>
+</body>
+</html>
