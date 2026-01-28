@@ -9,20 +9,37 @@
     "bg_color": "#050814",
     "header_image": "/static/image1.jpg",
     "enable_ticket_validation": false,
-    "enable_payment": false,
+    "enable_payment": true,
     "payment_amount": 0.01,
     "wechat_pay_config": {
-        "appid": "",
-        "mchid": "",
-        "api_v3_key": "",
-        "serial_no": "",
-        "private_key_path": "",
-        "notify_url": ""
+        "appid": "wxdf2ca73e6c0929f0",
+        "mchid": "1723685511",
+        "api_v3_key": "XishanquBanzhanweixinzhifumiyao3",
+        "serial_no": "49E299FC2F01841ECD6658D8B037C5338BD170BA",
+        "private_key_path": "static/cert/apiclient_key.pem",
+        "notify_url": "https://event.quant-speed.com/ticket/finish/"
     },
     "enable_seating": false,
     "total_tables": 14,
     "max_per_table": 10,
-    "field_config": {
+    "ticket_field_config": {
+        "name": {
+            "label": "姓名",
+            "show": true,
+            "required": true
+        },
+        "phone": {
+            "label": "手机号码",
+            "show": true,
+            "required": true
+        },
+        "industry_company": {
+            "label": "单位名称",
+            "show": true,
+            "required": true
+        }
+    },
+    "checkin_field_config": {
         "name": {
             "label": "姓名",
             "show": true,
@@ -36,31 +53,31 @@
         "company_name": {
             "label": "单位名称",
             "show": true,
-            "required": true
+            "required": false
         },
         "position": {
             "label": "职务",
             "show": true,
-            "required": true
+            "required": false
         },
         "business_scope": {
             "label": "公司主要经营 / 业务",
             "show": true,
-            "required": true
+            "required": false
         },
         "vision_2026": {
             "label": "2026年业务愿景",
-            "show": false,
+            "show": true,
             "required": false
         }
     },
     "wall_config": {
-        "bg_opacity": 0.9,
+        "bg_opacity": 0.3,
         "show_title": true,
-        "learn_more_url": "https://www.example.com",
+        "learn_more_url": "",
         "show_fields": {
             "name": true,
-            "company_name": false,
+            "company_name": true,
             "position": true,
             "vision_2026": true,
             "business_scope": true
@@ -68,7 +85,7 @@
     },
     "db_host": "6.6.6.66",
     "db_port": "5432",
-    "db_user": "AI_event",
-    "db_password": "123AI_event",
-    "db_name": "AI_event"
+    "db_user": "123",
+    "db_password": "1231",
+    "db_name": "123"
 }

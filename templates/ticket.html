@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>购票报名 - {{ config.event_title }}</title>
+    <script src="/static/js/qrcode.min.js"></script>
     <style>
         :root {
             --primary-color: {{ config.primary_color }};
@@ -191,6 +192,60 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+
+        /* Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-content {
+            background: #fff;
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            max-width: 90%;
+            width: 400px;
+            position: relative;
+            box-shadow: 0 0 30px rgba(0, 242, 255, 0.2);
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            font-size: 24px;
+            cursor: pointer;
+            color: #333;
+        }
+
+        #qrcode {
+            margin: 20px auto;
+            display: flex;
+            justify-content: center;
+        }
+
+        .modal-title {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+
+        .modal-tip {
+            color: #666;
+            font-size: 0.9rem;
+            margin-bottom: 20px;
+        }
     </style>
 </head>
 <body>
@@ -206,26 +261,20 @@
             </div>
 
             <form id="paymentForm" onsubmit="handlePayment(event)">
-                <div class="form-group">
-                    <label>姓名 *</label>
-                    <input type="text" id="name" required placeholder="请输入您的姓名">
-                </div>
-                <div class="form-group">
-                    <label>手机号码 *</label>
-                    <input type="tel" id="phone" required placeholder="请输入您的手机号码" pattern="[0-9]{11}">
-                </div>
-                <div class="form-group">
-                    <label>单位名称</label>
-                    <input type="text" id="company_name" placeholder="请输入单位名称">
-                </div>
-                <div class="form-group">
-                    <label>职务</label>
-                    <input type="text" id="position" placeholder="请输入您的职务">
-                </div>
-                <div class="form-group">
-                    <label>业务范围</label>
-                    <input type="text" id="business_scope" placeholder="简述主要业务">
-                </div>
+                {% set ordered_keys = ['name', 'phone', 'industry_company'] %}
+                {% for key in ordered_keys %}
+                    {% set field = config.ticket_field_config.get(key) %}
+                    {% if field and field.show %}
+                    <div class="form-group">
+                        <label>{{ field.label }}{% if field.required %} *{% endif %}</label>
+                        {% if key == 'phone' %}
+                            <input type="tel" id="{{ key }}" {% if field.required %}required{% endif %} placeholder="请输入{{ field.label }}" pattern="[0-9]{11}">
+                        {% else %}
+                            <input type="text" id="{{ key }}" {% if field.required %}required{% endif %} placeholder="请输入{{ field.label }}">
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                {% endfor %}
                 
                 <button type="submit" class="submit-btn" id="submitBtn">
                     立即支付报名
@@ -236,17 +285,49 @@
         </div>
     </div>
 
+    <!-- QR Code Modal -->
+    <div id="qrModal" class="modal-overlay">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeModal()">&times;</span>
+            <div class="modal-title">微信扫码支付</div>
+            <div style="margin: 15px 0; color: #28a745; font-weight: bold; font-size: 1.1rem;">
+                <span style="display:inline-block; margin-right:5px; vertical-align:middle;">📱</span>
+                请使用微信“扫一扫”
+            </div>
+            <div id="qrcode"></div>
+            <div id="payment-status" style="color: #666; font-size: 14px; margin-top: 15px;">等待支付...</div>
+        </div>
+    </div>
+
     <script>
+        let pollTimer = null;
+
+        function closeModal() {
+            document.getElementById('qrModal').style.display = 'none';
+            if (pollTimer) clearInterval(pollTimer);
+            document.getElementById('qrcode').innerHTML = '';
+            
+            // Reset button state
+            const btn = document.getElementById('submitBtn');
+            btn.disabled = false;
+            btn.innerHTML = '立即支付报名';
+        }
+
         async function handlePayment(e) {
             e.preventDefault();
             
             const btn = document.getElementById('submitBtn');
             const msg = document.getElementById('message');
-            const originalText = btn.innerHTML;
+            const originalText = "立即支付报名"; // Hardcoded or get from element
             
             // Validate
-            const name = document.getElementById('name').value.trim();
-            const phone = document.getElementById('phone').value.trim();
+            const getVal = (id) => {
+                const el = document.getElementById(id);
+                return el ? el.value.trim() : '';
+            };
+
+            const name = getVal('name');
+            const phone = getVal('phone');
             
             if (!name || !phone) {
                 showMessage('请填写必填项', 'error');
@@ -261,13 +342,15 @@
             const data = {
                 name: name,
                 phone: phone,
-                company_name: document.getElementById('company_name').value.trim(),
-                position: document.getElementById('position').value.trim(),
-                business_scope: document.getElementById('business_scope').value.trim()
+                company_name: getVal('industry_company')
             };
             
+            // Check Screen Width
+            const isWideScreen = window.innerWidth > 768;
+            const apiEndpoint = isWideScreen ? '/api/payment/native' : '/api/payment/h5';
+            
             try {
-                const res = await fetch('/api/payment/h5', {
+                const res = await fetch(apiEndpoint, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -277,10 +360,27 @@
                 
                 const result = await res.json();
                 
-                if (result.success && result.h5_url) {
-                    showMessage('正在跳转支付...', 'success');
-                    // Redirect to WeChat Pay
-                    window.location.href = result.h5_url;
+                if (result.success) {
+                    if (isWideScreen && result.code_url) {
+                        // Show Native Pay QR Code
+                        document.getElementById('qrModal').style.display = 'flex';
+                        document.getElementById('qrcode').innerHTML = ''; // Clear previous
+                        new QRCode(document.getElementById("qrcode"), {
+                            text: result.code_url,
+                            width: 200,
+                            height: 200
+                        });
+                        
+                        // Start Polling
+                        startPolling(result.out_trade_no);
+                        
+                    } else if (result.h5_url) {
+                        // H5 Redirect
+                        showMessage('正在跳转支付...', 'success');
+                        window.location.href = result.h5_url;
+                    } else {
+                        throw new Error('未获取到支付链接');
+                    }
                 } else {
                     showMessage(result.message || '支付请求失败', 'error');
                     btn.disabled = false;
@@ -288,12 +388,45 @@
                 }
             } catch (err) {
                 console.error(err);
-                showMessage('网络请求错误，请重试', 'error');
+                showMessage(err.message || '网络请求错误，请重试', 'error');
                 btn.disabled = false;
                 btn.innerHTML = originalText;
             }
         }
         
+        function startPolling(out_trade_no) {
+            const statusDiv = document.getElementById('payment-status');
+            let attempts = 0;
+            const maxAttempts = 600; // 30 mins max
+            
+            if (pollTimer) clearInterval(pollTimer);
+            
+            pollTimer = setInterval(async () => {
+                attempts++;
+                if (attempts > maxAttempts) {
+                    clearInterval(pollTimer);
+                    statusDiv.textContent = '支付超时，请刷新重试';
+                    return;
+                }
+                
+                try {
+                    const res = await fetch(`/api/payment/check/${out_trade_no}`);
+                    const data = await res.json();
+                    
+                    if (data.success && data.trade_state === 'SUCCESS') {
+                        clearInterval(pollTimer);
+                        statusDiv.textContent = '支付成功！正在跳转...';
+                        statusDiv.style.color = '#28a745';
+                        setTimeout(() => {
+                            window.location.href = '/success';
+                        }, 1000);
+                    }
+                } catch (e) {
+                    console.error("Polling error", e);
+                }
+            }, 3000);
+        }
+
         function showMessage(text, type) {
             const msg = document.getElementById('message');
             msg.textContent = text;

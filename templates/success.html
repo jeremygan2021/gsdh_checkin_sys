@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>报名成功 - {{ config.event_title }}</title>
+    <style>
+        :root {
+            --primary-color: {{ config.primary_color }};
+            --secondary-color: {{ config.secondary_color }};
+            --bg-color: {{ config.bg_color }};
+            --card-bg: rgba(12, 24, 50, 0.7);
+            --text-color: #ffffff;
+        }
+
+        body {
+            font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            background-image: 
+                radial-gradient(circle at 50% 0%, #1a3a75 0%, #050814 60%),
+                radial-gradient(circle at 85% 30%, rgba(0, 242, 255, 0.1) 0%, transparent 40%),
+                radial-gradient(circle at 15% 70%, rgba(0, 102, 255, 0.15) 0%, transparent 40%);
+            background-attachment: fixed;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            margin: 0;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 20px;
+            padding: 40px;
+            text-align: center;
+            max-width: 500px;
+            width: 100%;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(0, 242, 255, 0.3);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            animation: fadeIn 0.8s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .icon-success {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: #28a745;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            margin: 0 auto 20px;
+            box-shadow: 0 0 20px rgba(40, 167, 69, 0.4);
+        }
+
+        h1 {
+            font-size: 1.8rem;
+            margin-bottom: 15px;
+            color: #fff;
+        }
+
+        p {
+            color: #ccc;
+            line-height: 1.6;
+            margin-bottom: 30px;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 12px 30px;
+            background: linear-gradient(90deg, #0051ff 0%, #00f2ff 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 25px;
+            font-weight: bold;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(0, 242, 255, 0.3);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px rgba(0, 242, 255, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="icon-success">✓</div>
+        <h1>报名成功</h1>
+        <p>您已成功支付并完成报名！<br>请届时凭手机号或二维码入场。</p>
+        <a href="/" class="btn">返回首页</a>
+    </div>
+</body>
+</html>

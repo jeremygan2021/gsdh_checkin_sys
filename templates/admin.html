@@ -73,6 +73,41 @@
             font-size: 1.2rem;
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
             padding-bottom: 10px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            user-select: none;
+        }
+
+        h2::after {
+            content: '▼';
+            font-size: 0.8em;
+            transition: transform 0.3s;
+            opacity: 0.7;
+        }
+
+        .card.collapsed h2::after {
+            transform: rotate(-90deg);
+        }
+
+        .card.collapsed h2 {
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+
+        .card-content {
+            transition: all 0.3s ease-in-out;
+            max-height: 3000px; /* Ensure enough height for content */
+            opacity: 1;
+            overflow: hidden;
+        }
+
+        .card.collapsed .card-content {
+            max-height: 0;
+            opacity: 0;
+            margin: 0;
+            padding: 0;
         }
 
         .form-group {
@@ -297,219 +332,259 @@
         
         <div class="card">
             <h2>基本信息设置</h2>
-            <div class="form-group">
-                <label>活动标题</label>
-                <input type="text" id="event_title">
-            </div>
-            <div class="form-group">
-                <label>副标题</label>
-                <input type="text" id="event_sub_title">
-            </div>
-            <div class="form-group">
-                <label>活动时间</label>
-                <input type="text" id="event_time">
-            </div>
-            <div class="form-group">
-                <label>活动地点</label>
-                <input type="text" id="event_location">
-            </div>
-            <div class="form-group">
-                <label>活动内容</label>
-                <textarea id="event_content" rows="4"></textarea>
+            <div class="card-content">
+                <div class="form-group">
+                    <label>活动标题</label>
+                    <input type="text" id="event_title">
+                </div>
+                <div class="form-group">
+                    <label>副标题</label>
+                    <input type="text" id="event_sub_title">
+                </div>
+                <div class="form-group">
+                    <label>活动时间</label>
+                    <input type="text" id="event_time">
+                </div>
+                <div class="form-group">
+                    <label>活动地点</label>
+                    <input type="text" id="event_location">
+                </div>
+                <div class="form-group">
+                    <label>活动内容</label>
+                    <textarea id="event_content" rows="4"></textarea>
+                </div>
             </div>
         </div>
 
-        <div class="card">
+        <div class="card collapsed">
             <h2>签到设置</h2>
-            <div class="checkbox-wrapper">
-                <input type="checkbox" id="enable_ticket_validation">
-                <label for="enable_ticket_validation">开启验票验证 (核对数据库与付款记录)</label>
+            <div class="card-content">
+                <div class="checkbox-wrapper">
+                    <input type="checkbox" id="enable_ticket_validation">
+                    <label for="enable_ticket_validation">开启验票验证 (核对数据库与付款记录)</label>
+                </div>
+                <p style="font-size: 0.9em; color: var(--text-muted); margin-left: 30px;">
+                    关闭后将跳过数据库核查，直接允许签到（若用户不存在将自动创建）。
+                </p>
             </div>
-            <p style="font-size: 0.9em; color: var(--text-muted); margin-left: 30px;">
-                关闭后将跳过数据库核查，直接允许签到（若用户不存在将自动创建）。
-            </p>
         </div>
 
-        <div class="card">
+        <div class="card collapsed">
             <h2>座位设置</h2>
-            <div class="checkbox-wrapper">
-                <input type="checkbox" id="enable_seating" onchange="toggleSeatingInputs()">
-                <label for="enable_seating">开启分桌功能</label>
-            </div>
-            <div id="seating_inputs">
-                <div class="form-group">
-                    <label>总桌数</label>
-                    <input type="number" id="total_tables" min="1">
+            <div class="card-content">
+                <div class="checkbox-wrapper">
+                    <input type="checkbox" id="enable_seating" onchange="toggleSeatingInputs()">
+                    <label for="enable_seating">开启分桌功能</label>
                 </div>
-                <div class="form-group">
-                    <label>每桌最大人数</label>
-                    <input type="number" id="max_per_table" min="1">
+                <div id="seating_inputs">
+                    <div class="form-group">
+                        <label>总桌数</label>
+                        <input type="number" id="total_tables" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label>每桌最大人数</label>
+                        <input type="number" id="max_per_table" min="1">
+                    </div>
                 </div>
             </div>
         </div>
 
-        <div class="card">
-            <h2>表单字段设置</h2>
-            <table style="width: 100%; border-collapse: collapse; color: white;">
-                <thead>
-                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.1); text-align: left;">
-                        <th style="padding: 10px;">字段名称</th>
-                        <th style="padding: 10px;">是否显示</th>
-                        <th style="padding: 10px;">是否必填</th>
-                    </tr>
-                </thead>
-                <tbody id="field_config_body">
-                    <!-- Fields will be injected here -->
-                </tbody>
-            </table>
+        <div class="card collapsed">
+            <h2>报名输入字段设置 (Registration Fields)</h2>
+            <div class="card-content">
+                <p style="font-size: 0.9em; color: var(--text-muted); margin-bottom: 15px;">对应 gsdh_data 表 (ticket.html)</p>
+                <table style="width: 100%; border-collapse: collapse; color: white;">
+                    <thead>
+                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1); text-align: left;">
+                            <th style="padding: 10px;">字段名称</th>
+                            <th style="padding: 10px;">是否显示</th>
+                            <th style="padding: 10px;">是否必填</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ticket_field_config_body">
+                        <!-- Ticket Fields will be injected here -->
+                    </tbody>
+                </table>
+            </div>
         </div>
 
-        <div class="card">
+        <div class="card collapsed">
+            <h2>签到/大屏字段设置 (Check-in Fields)</h2>
+            <div class="card-content">
+                <p style="font-size: 0.9em; color: var(--text-muted); margin-bottom: 15px;">对应 checkin_info 表 (wall/checkin)</p>
+                <table style="width: 100%; border-collapse: collapse; color: white;">
+                    <thead>
+                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1); text-align: left;">
+                            <th style="padding: 10px;">字段名称</th>
+                            <th style="padding: 10px;">是否显示</th>
+                            <th style="padding: 10px;">是否必填</th>
+                        </tr>
+                    </thead>
+                    <tbody id="checkin_field_config_body">
+                        <!-- Checkin Fields will be injected here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card collapsed">
             <h2>支付设置 (Payment)</h2>
-            <div class="checkbox-wrapper">
-                <input type="checkbox" id="enable_payment">
-                <label for="enable_payment">开启付费报名 (Enable Paid Registration)</label>
-            </div>
-            <p style="font-size: 0.9em; color: var(--text-muted); margin-left: 30px; margin-bottom: 15px;">
-                开启后，<a href="/ticket" target="_blank" style="color: var(--primary-color);">/ticket</a> 页面将开放访问。
-            </p>
-            <div class="form-group">
-                <label>支付金额 (元)</label>
-                <input type="number" id="payment_amount" step="0.01" min="0.01">
-            </div>
-            
-            <h3 style="color: #b0c4de; margin: 20px 0 15px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px; font-size: 1rem;">微信支付配置 (WeChat Pay V3)</h3>
-            
-            <div class="form-group">
-                <label>AppID</label>
-                <input type="text" id="wx_appid" placeholder="wx...">
-            </div>
-            <div class="form-group">
-                <label>MchID (商户号)</label>
-                <input type="text" id="wx_mchid" placeholder="16...">
-            </div>
-            <div class="form-group">
-                <label>API V3 Key</label>
-                <div class="input-group">
-                    <input type="password" id="wx_api_v3_key" placeholder="32位密钥">
-                    <button class="toggle-btn" aria-label="显示/隐藏" data-target="wx_api_v3_key" onclick="togglePasswordVisibility(this)">显示</button>
+            <div class="card-content">
+                <div class="checkbox-wrapper">
+                    <input type="checkbox" id="enable_payment">
+                    <label for="enable_payment">开启付费报名 (Enable Paid Registration)</label>
                 </div>
-            </div>
-            <div class="form-group">
-                <label>Serial No (证书序列号)</label>
-                <input type="text" id="wx_serial_no" placeholder="证书序列号">
-            </div>
-            <div class="form-group">
-                <label>商户私钥路径 (Private Key Path)</label>
-                <input type="text" id="wx_private_key_path" placeholder="cert/apiclient_key.pem">
-            </div>
-            <div class="form-group">
-                <label>回调地址 (Notify URL)</label>
-                <input type="text" id="wx_notify_url" placeholder="https://your-domain.com/api/payment/notify">
+                <p style="font-size: 0.9em; color: var(--text-muted); margin-left: 30px; margin-bottom: 15px;">
+                    开启后，<a href="/ticket" target="_blank" style="color: var(--primary-color);">/ticket</a> 页面将开放访问。
+                </p>
+                <div class="form-group">
+                    <label>支付金额 (元)</label>
+                    <input type="number" id="payment_amount" step="0.01" min="0.01">
+                </div>
+                
+                <h3 style="color: #b0c4de; margin: 20px 0 15px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px; font-size: 1rem;">微信支付配置 (WeChat Pay V3)</h3>
+                
+                <div class="form-group">
+                    <label>AppID</label>
+                    <input type="text" id="wx_appid" placeholder="wx...">
+                </div>
+                <div class="form-group">
+                    <label>MchID (商户号)</label>
+                    <input type="text" id="wx_mchid" placeholder="16...">
+                </div>
+                <div class="form-group">
+                    <label>API V3 Key</label>
+                    <div class="input-group">
+                        <input type="password" id="wx_api_v3_key" placeholder="32位密钥">
+                        <button class="toggle-btn" aria-label="显示/隐藏" data-target="wx_api_v3_key" onclick="togglePasswordVisibility(this)">显示</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Serial No (证书序列号)</label>
+                    <input type="text" id="wx_serial_no" placeholder="证书序列号">
+                </div>
+                <div class="form-group">
+                    <label>商户私钥路径 (Private Key Path)</label>
+                    <input type="text" id="wx_private_key_path" placeholder="cert/apiclient_key.pem">
+                </div>
+                <div class="form-group">
+                    <label>回调地址 (Notify URL)</label>
+                    <input type="text" id="wx_notify_url" placeholder="https://your-domain.com/api/payment/notify">
+                </div>
             </div>
         </div>
 
-        <div class="card">
+        <div class="card collapsed">
             <h2>数据库设置</h2>
-            <div class="form-group">
-                <label>数据库地址 (Host)</label>
-                <input type="text" id="db_host" placeholder="localhost">
-            </div>
-            <div class="form-group">
-                <label>端口 (Port)</label>
-                <input type="text" id="db_port" placeholder="5432">
-            </div>
-            <div class="form-group">
-                <label>用户名 (User)</label>
-                <input type="text" id="db_user">
-            </div>
-            <div class="form-group">
-                <label>密码 (Password)</label>
-                <div class="input-group">
-                    <input type="password" id="db_password" placeholder="数据库密码">
-                    <button class="toggle-btn" aria-label="显示/隐藏密码" data-target="db_password" onclick="togglePasswordVisibility(this)">显示</button>
+            <div class="card-content">
+                <div class="form-group">
+                    <label>数据库地址 (Host)</label>
+                    <input type="text" id="db_host" placeholder="localhost">
                 </div>
+                <div class="form-group">
+                    <label>端口 (Port)</label>
+                    <input type="text" id="db_port" placeholder="5432">
+                </div>
+                <div class="form-group">
+                    <label>用户名 (User)</label>
+                    <input type="text" id="db_user">
+                </div>
+                <div class="form-group">
+                    <label>密码 (Password)</label>
+                    <div class="input-group">
+                        <input type="password" id="db_password" placeholder="数据库密码">
+                        <button class="toggle-btn" aria-label="显示/隐藏密码" data-target="db_password" onclick="togglePasswordVisibility(this)">显示</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>数据库名 (Database Name)</label>
+                    <input type="text" id="db_name">
+                </div>
+                <button class="btn-success" onclick="testDbConnection()">测试连接</button>
+                <button class="btn-lg" style="margin-left: 10px; background: linear-gradient(90deg, #17a2b8 0%, #138496 100%);" onclick="initDatabase()">初始化/迁移结构</button>
+                <p style="font-size: 0.9em; color: var(--text-muted); margin-top: 10px;">
+                    提示：切换到新数据库后，点击“初始化/迁移结构”可自动创建表结构（不会删除现有数据）。
+                </p>
             </div>
-            <div class="form-group">
-                <label>数据库名 (Database Name)</label>
-                <input type="text" id="db_name">
-            </div>
-            <button class="btn-success" onclick="testDbConnection()">测试连接</button>
-            <button class="btn-lg" style="margin-left: 10px; background: linear-gradient(90deg, #17a2b8 0%, #138496 100%);" onclick="initDatabase()">初始化/迁移结构</button>
-            <p style="font-size: 0.9em; color: var(--text-muted); margin-top: 10px;">
-                提示：切换到新数据库后，点击“初始化/迁移结构”可自动创建表结构（不会删除现有数据）。
-            </p>
         </div>
 
-        <div class="card">
+        <div class="card collapsed">
             <h2>大屏设置 (Wall Config)</h2>
-            <div class="form-group">
-                <label>背景图片透明度 (0-1)</label>
-                <input type="number" id="wall_bg_opacity" step="0.1" min="0" max="1" value="0.3">
-            </div>
-            <div class="checkbox-wrapper">
-                <input type="checkbox" id="wall_show_title"> <label for="wall_show_title">显示大屏标题</label>
-            </div>
-            <div class="form-group">
-                <label>了解我们 URL (手机端底部按钮)</label>
-                <input type="text" id="wall_learn_more_url" placeholder="https://...">
-            </div>
-            <div class="form-group">
-                <label>显示字段</label>
-                <div class="checkbox-wrapper">
-                    <input type="checkbox" id="wall_show_name"> <label for="wall_show_name">姓名</label>
+            <div class="card-content">
+                <div class="form-group">
+                    <label>背景图片透明度 (0-1)</label>
+                    <input type="number" id="wall_bg_opacity" step="0.1" min="0" max="1" value="0.3">
                 </div>
                 <div class="checkbox-wrapper">
-                    <input type="checkbox" id="wall_show_company"> <label for="wall_show_company">单位名称</label>
+                    <input type="checkbox" id="wall_show_title"> <label for="wall_show_title">显示大屏标题</label>
                 </div>
-                <div class="checkbox-wrapper">
-                    <input type="checkbox" id="wall_show_position"> <label for="wall_show_position">职务</label>
+                <div class="form-group">
+                    <label>了解我们 URL (手机端底部按钮)</label>
+                    <input type="text" id="wall_learn_more_url" placeholder="https://...">
                 </div>
-                <div class="checkbox-wrapper">
-                    <input type="checkbox" id="wall_show_vision"> <label for="wall_show_vision">愿景 (Vision)</label>
-                </div>
-                <div class="checkbox-wrapper">
-                    <input type="checkbox" id="wall_show_scope"> <label for="wall_show_scope">业务范围 (弹幕)</label>
+                <div class="form-group">
+                    <label>显示字段</label>
+                    <div class="checkbox-wrapper">
+                        <input type="checkbox" id="wall_show_name"> <label for="wall_show_name">姓名</label>
+                    </div>
+                    <div class="checkbox-wrapper">
+                        <input type="checkbox" id="wall_show_company"> <label for="wall_show_company">单位名称</label>
+                    </div>
+                    <div class="checkbox-wrapper">
+                        <input type="checkbox" id="wall_show_position"> <label for="wall_show_position">职务</label>
+                    </div>
+                    <div class="checkbox-wrapper">
+                        <input type="checkbox" id="wall_show_vision"> <label for="wall_show_vision">愿景 (Vision)</label>
+                    </div>
+                    <div class="checkbox-wrapper">
+                        <input type="checkbox" id="wall_show_scope"> <label for="wall_show_scope">业务范围 (弹幕)</label>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <div class="card">
+        <div class="card collapsed">
             <h2>主题设置</h2>
-            <div class="form-group">
-                <label>主色调 (Primary Color)</label>
-                <input type="color" id="primary_color">
-            </div>
-            <div class="form-group">
-                <label>次色调 (Secondary Color)</label>
-                <input type="color" id="secondary_color">
-            </div>
-            <div class="form-group">
-                <label>背景色 (Background Color)</label>
-                <input type="color" id="bg_color">
+            <div class="card-content">
+                <div class="form-group">
+                    <label>主色调 (Primary Color)</label>
+                    <input type="color" id="primary_color">
+                </div>
+                <div class="form-group">
+                    <label>次色调 (Secondary Color)</label>
+                    <input type="color" id="secondary_color">
+                </div>
+                <div class="form-group">
+                    <label>背景色 (Background Color)</label>
+                    <input type="color" id="bg_color">
+                </div>
             </div>
         </div>
 
-        <div class="card">
+        <div class="card collapsed">
             <h2>图片设置</h2>
-            <div class="form-group">
-                <label>顶部头图</label>
-                <input type="file" id="header_image_file" accept="image/*" style="padding: 10px 0;">
-                <img id="image_preview" class="preview-img" src="">
+            <div class="card-content">
+                <div class="form-group">
+                    <label>顶部头图</label>
+                    <input type="file" id="header_image_file" accept="image/*" style="padding: 10px 0;">
+                    <img id="image_preview" class="preview-img" src="">
+                </div>
+                <button onclick="uploadImage()">上传图片</button>
             </div>
-            <button onclick="uploadImage()">上传图片</button>
         </div>
 
         <div style="margin-bottom: 25px; text-align: center;">
             <button onclick="saveConfig()" class="btn-block btn-lg">保存所有设置</button>
         </div>
 
-        <div class="card danger-zone">
+        <div class="card danger-zone collapsed">
             <h2>危险区域</h2>
-            <p style="color: #ffcccc; margin-bottom: 15px;">此处操作不可逆，请谨慎操作。</p>
-            <div class="form-group">
-                <button class="btn-danger" onclick="resetDatabase()">重置/创建数据库</button>
-                <p style="font-size: 0.9em; color: #ffcccc; margin-top: 10px;">这将清空所有签到数据并重新创建表结构。</p>
+            <div class="card-content">
+                <p style="color: #ffcccc; margin-bottom: 15px;">此处操作不可逆，请谨慎操作。</p>
+                <div class="form-group">
+                    <button class="btn-danger" onclick="resetDatabase()">重置/创建数据库</button>
+                    <p style="font-size: 0.9em; color: #ffcccc; margin-top: 10px;">这将清空所有签到数据并重新创建表结构。</p>
+                </div>
             </div>
         </div>
 
@@ -517,6 +592,15 @@
     </div>
 
     <script>
+        // Collapsible Cards Logic
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('.card h2').forEach(header => {
+                header.addEventListener('click', () => {
+                    header.parentElement.classList.toggle('collapsed');
+                });
+            });
+        });
+
         // Use secret from backend
         const ACCESS_SECRET = "{{ secret }}";
 
@@ -602,15 +686,21 @@
                 document.getElementById('max_per_table').value = config.max_per_table || 10;
                 toggleSeatingInputs();
                 
-                // Field Config
-                renderFieldConfig(config.field_config || {
+                // Field Configs
+                renderFieldConfig('ticket_field_config_body', config.ticket_field_config || {
                     "name": {"label": "姓名", "show": true, "required": true},
                     "phone": {"label": "手机号码", "show": true, "required": true},
+                    "industry_company": {"label": "单位名称", "show": true, "required": true}
+                }, ["name", "phone", "industry_company"]);
+
+                renderFieldConfig('checkin_field_config_body', config.checkin_field_config || {
+                    "name": {"label": "姓名", "show": true, "required": true},
+                    "phone": {"label": "手机号码", "show": True, "required": True},
                     "company_name": {"label": "单位名称", "show": true, "required": false},
                     "position": {"label": "职务", "show": true, "required": false},
                     "business_scope": {"label": "公司主要经营 / 业务", "show": true, "required": false},
                     "vision_2026": {"label": "2026年业务愿景", "show": true, "required": false}
-                });
+                }, ["name", "phone", "company_name", "position", "business_scope", "vision_2026"]);
 
                 // DB Config
                 document.getElementById('db_host').value = config.db_host || '';
@@ -631,12 +721,14 @@
                 document.getElementById('wall_show_scope').checked = show.business_scope !== false;
             });
 
-        function renderFieldConfig(fieldConfig) {
-            const tbody = document.getElementById('field_config_body');
+        function renderFieldConfig(tbodyId, fieldConfig, orderedKeys) {
+            const tbody = document.getElementById(tbodyId);
             tbody.innerHTML = '';
             
-            // Order of fields
-            const orderedKeys = ["name", "phone", "company_name", "position", "business_scope", "vision_2026"];
+            // If orderedKeys not provided, use default order or Object.keys
+            if (!orderedKeys) {
+                orderedKeys = Object.keys(fieldConfig);
+            }
             
             orderedKeys.forEach(key => {
                 if (!fieldConfig[key]) return;
@@ -644,9 +736,7 @@
                 const tr = document.createElement('tr');
                 tr.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
                 
-                // Name/Phone lock logic (can modify required/show but maybe should lock show for logic safety? 
-                // User asked to set displayed/required, so I will allow it but maybe warn or just allow it.)
-                // Actually, name/phone are critical. I will disable the 'show' checkbox for them to prevent system break.
+                // Name/Phone lock logic
                 const isLocked = (key === 'name' || key === 'phone');
                 
                 tr.innerHTML = `
@@ -662,16 +752,14 @@
             });
         }
 
-        function getFieldConfig() {
+        function getFieldConfig(tbodyId) {
             const config = {};
-            const rows = document.querySelectorAll('#field_config_body tr');
+            const rows = document.querySelectorAll(`#${tbodyId} tr`);
             rows.forEach(row => {
                 const showCb = row.querySelector('.field-show');
                 const reqCb = row.querySelector('.field-required');
                 const key = showCb.dataset.key;
                 
-                // Retrieve label from somewhere or just hardcode/store in data attr.
-                // Simple way: text content
                 const labelText = row.cells[0].textContent.split(' (')[0];
                 
                 config[key] = {
@@ -680,7 +768,7 @@
                     required: reqCb.checked
                 };
             });
-            // Ensure locked fields are true/true if disabled
+            // Ensure locked fields are true/true
             if (config.name) { config.name.show = true; config.name.required = true; }
             if (config.phone) { config.phone.show = true; config.phone.required = true; }
             
@@ -728,7 +816,8 @@
                 max_per_table: parseInt(document.getElementById('max_per_table').value),
 
                 // Field Config
-                field_config: getFieldConfig(),
+                ticket_field_config: getFieldConfig('ticket_field_config_body'),
+                checkin_field_config: getFieldConfig('checkin_field_config_body'),
 
                 // Wall Config
                 wall_config: {

@@ -13,6 +13,11 @@ import os
 import json
 import shutil
 import difflib
+import time
+import base64
+import requests
+from cryptography.hazmat.primitives import serialization, hashes
+from cryptography.hazmat.primitives.asymmetric import padding
 from concurrent.futures import ProcessPoolExecutor
 from dotenv import load_dotenv
 
@@ -39,7 +44,12 @@ DEFAULT_CONFIG = {
     "enable_seating": True,
     "total_tables": 14,
     "max_per_table": 10,
-    "field_config": {
+    "ticket_field_config": {
+        "name": {"label": "姓名", "show": True, "required": True},
+        "phone": {"label": "手机号码", "show": True, "required": True},
+        "industry_company": {"label": "单位名称", "show": True, "required": True}
+    },
+    "checkin_field_config": {
         "name": {"label": "姓名", "show": True, "required": True},
         "phone": {"label": "手机号码", "show": True, "required": True},
         "company_name": {"label": "单位名称", "show": True, "required": False},
@@ -1198,6 +1208,7 @@ def reset_database():
                 industry_company VARCHAR(200),
                 fee VARCHAR(50),
                 payment_channel VARCHAR(50),
+                out_trade_no VARCHAR(100),
                 is_signed VARCHAR(10) DEFAULT 'FALSE'
             );
         """)
@@ -1270,6 +1281,7 @@ def init_database():
                 industry_company VARCHAR(200),
                 fee VARCHAR(50),
                 payment_channel VARCHAR(50),
+                out_trade_no VARCHAR(100),
                 is_signed VARCHAR(10) DEFAULT 'FALSE'
             );
         """)
@@ -1323,6 +1335,7 @@ def init_database():
 
         safe_add_column('gsdh_data', 'fee', 'VARCHAR(50)')
         safe_add_column('gsdh_data', 'payment_channel', 'VARCHAR(50)')
+        safe_add_column('gsdh_data', 'out_trade_no', 'VARCHAR(100)')
         safe_add_column('gsdh_data', 'is_signed', "VARCHAR(10) DEFAULT 'FALSE'")
         
         safe_add_column('checkin_info', 'social_point', 'INTEGER DEFAULT 5')
@@ -1434,6 +1447,58 @@ class WeChatPayService:
         else:
             raise Exception(f"WeChat Pay Error: {response.text}")
 
+    def native_payment(self, description, out_trade_no, amount_fen, client_ip=None):
+        url = "https://api.mch.weixin.qq.com/v3/pay/transactions/native"
+        path = "/v3/pay/transactions/native"
+        
+        data = {
+            "appid": self.appid,
+            "mchid": self.mchid,
+            "description": description,
+            "out_trade_no": out_trade_no,
+            "notify_url": self.notify_url,
+            "amount": {
+                "total": amount_fen,
+                "currency": "CNY"
+            }
+        }
+        
+        body = json.dumps(data)
+        auth = self.build_authorization_header("POST", path, body)
+        
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "Authorization": auth
+        }
+        
+        response = requests.post(url, data=body, headers=headers)
+        
+        if response.status_code in [200, 202]:
+            return response.json()
+        else:
+            raise Exception(f"WeChat Pay Error: {response.text}")
+
+    def query_order(self, out_trade_no):
+        url = f"https://api.mch.weixin.qq.com/v3/pay/transactions/out-trade-no/{out_trade_no}?mchid={self.mchid}"
+        path = f"/v3/pay/transactions/out-trade-no/{out_trade_no}?mchid={self.mchid}"
+        
+        auth = self.build_authorization_header("GET", path, "")
+        
+        headers = {
+            "Accept": "application/json",
+            "Authorization": auth
+        }
+        
+        response = requests.get(url, headers=headers)
+        
+        if response.status_code == 200:
+            return response.json()
+        elif response.status_code == 404:
+            return {"trade_state": "NOTPAY"} # Or handle as not found
+        else:
+            raise Exception(f"WeChat Query Error: {response.text}")
+
 @app.get("/ticket", response_class=HTMLResponse)
 async def ticket_page(request: Request):
     global CONFIG
@@ -1443,6 +1508,12 @@ async def ticket_page(request: Request):
         return HTMLResponse(content="<h1>报名通道尚未开启 / Registration Closed</h1>", status_code=403)
         
     return templates.TemplateResponse("ticket.html", {"request": request, "config": CONFIG})
+
+@app.get("/success", response_class=HTMLResponse)
+async def success_page(request: Request):
+    global CONFIG
+    CONFIG = load_config()
+    return templates.TemplateResponse("success.html", {"request": request, "config": CONFIG})
 
 class TicketPaymentRequest(BaseModel):
     name: str
@@ -1488,23 +1559,31 @@ async def create_payment(req: TicketPaymentRequest, request: Request):
         new_id = str(max_id + 1)
         
         # Upsert user (if phone exists, update; else insert)
-        # Actually, if phone exists, we should update.
-        cur.execute("SELECT new_id FROM gsdh_data WHERE phone = %s", (req.phone,))
+        cur.execute("SELECT new_id, fee FROM gsdh_data WHERE phone = %s", (req.phone,))
         existing = cur.fetchone()
         
         if existing:
             user_id = existing[0]
+            current_fee = existing[1]
+            
+            # Validation: Check if already paid
+            # Conditions for "Unpaid": None, Empty String, '0', 'PENDING'
+            if current_fee and current_fee not in ['0', 'PENDING']:
+                cur.close()
+                release_db_connection(conn)
+                return JSONResponse(content={"success": False, "message": "该手机号已完成报名，无需重复支付"}, status_code=400)
+            
             cur.execute("""
                 UPDATE gsdh_data 
-                SET name=%s, industry_company=%s, fee='PENDING', payment_channel='wechat_h5_pending'
+                SET name=%s, industry_company=%s, fee='PENDING', payment_channel='wechat_h5_pending', out_trade_no=%s
                 WHERE new_id=%s
-            """, (req.name, req.company_name, user_id))
+            """, (req.name, req.company_name, out_trade_no, user_id))
         else:
             user_id = new_id
             cur.execute("""
-                INSERT INTO gsdh_data (new_id, name, phone, industry_company, fee, payment_channel, is_signed)
-                VALUES (%s, %s, %s, %s, 'PENDING', 'wechat_h5_pending', 'FALSE')
-            """, (user_id, req.name, req.phone, req.company_name))
+                INSERT INTO gsdh_data (new_id, name, phone, industry_company, fee, payment_channel, is_signed, out_trade_no)
+                VALUES (%s, %s, %s, %s, 'PENDING', 'wechat_h5_pending', 'FALSE', %s)
+            """, (user_id, req.name, req.phone, req.company_name, out_trade_no))
             
         # Also store extra info in checkin_info? 
         # Requirement: "If registration paid then add to gsdh_data"
@@ -1538,6 +1617,141 @@ async def create_payment(req: TicketPaymentRequest, request: Request):
     except Exception as e:
         if 'conn' in locals() and conn:
             release_db_connection(conn)
+        return JSONResponse(content={"success": False, "message": str(e)}, status_code=500)
+
+@app.post("/api/payment/native")
+async def create_native_payment(req: TicketPaymentRequest, request: Request):
+    """
+    处理 Native 支付请求 (扫码支付)。
+    """
+    try:
+        global CONFIG
+        CONFIG = load_config()
+        
+        if not CONFIG.get("enable_payment", False):
+            return JSONResponse(content={"success": False, "message": "支付未开启"}, status_code=403)
+            
+        wc_config = CONFIG.get("wechat_pay_config", {})
+        service = WeChatPayService(wc_config)
+        
+        # 1. Generate Order ID
+        out_trade_no = f"TICKET_{int(time.time())}_{uuid.uuid4().hex[:6]}"
+        
+        # 2. Amount (Convert to Fen)
+        amount_yuan = float(CONFIG.get("payment_amount", 0.01))
+        amount_fen = int(amount_yuan * 100)
+        
+        # 3. Save Temporary User Data (Pending Payment)
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Calculate new ID
+        cur.execute("SELECT MAX(CAST(new_id AS INTEGER)) FROM gsdh_data WHERE new_id ~ '^[0-9]+$'")
+        row = cur.fetchone()
+        max_id = row[0] if row and row[0] is not None else 0
+        new_id = str(max_id + 1)
+        
+        # Upsert user
+        cur.execute("SELECT new_id, fee FROM gsdh_data WHERE phone = %s", (req.phone,))
+        existing = cur.fetchone()
+        
+        if existing:
+            user_id = existing[0]
+            current_fee = existing[1]
+            
+            # Validation: Check if already paid
+            if current_fee and current_fee not in ['0', 'PENDING']:
+                cur.close()
+                release_db_connection(conn)
+                return JSONResponse(content={"success": False, "message": "该手机号已完成报名，无需重复支付"}, status_code=400)
+
+            cur.execute("""
+                UPDATE gsdh_data 
+                SET name=%s, industry_company=%s, fee='PENDING', payment_channel='微信线上支付_pending', out_trade_no=%s
+                WHERE new_id=%s
+            """, (req.name, req.company_name, out_trade_no, user_id))
+        else:
+            user_id = new_id
+            cur.execute("""
+                INSERT INTO gsdh_data (new_id, name, phone, industry_company, fee, payment_channel, is_signed, out_trade_no)
+                VALUES (%s, %s, %s, %s, 'PENDING', '微信线上支付_pending', 'FALSE', %s)
+            """, (user_id, req.name, req.phone, req.company_name, out_trade_no))
+            
+        conn.commit()
+        cur.close()
+        release_db_connection(conn)
+        
+        # 4. Call WeChat Pay
+        try:
+            res = service.native_payment(
+                description=f"{CONFIG.get('event_title', 'Event')} Ticket",
+                out_trade_no=out_trade_no,
+                amount_fen=amount_fen,
+                client_ip=request.client.host
+            )
+            code_url = res.get("code_url")
+            return {"success": True, "code_url": code_url, "out_trade_no": out_trade_no}
+            
+        except Exception as wx_e:
+            print(f"WeChat Pay Failed: {wx_e}")
+            if "Private key not loaded" in str(wx_e):
+                 return JSONResponse(content={"success": False, "message": "服务端未配置支付证书，无法发起支付"}, status_code=500)
+            return JSONResponse(content={"success": False, "message": f"支付请求失败: {str(wx_e)}"}, status_code=500)
+
+    except Exception as e:
+        if 'conn' in locals() and conn:
+            release_db_connection(conn)
+        return JSONResponse(content={"success": False, "message": str(e)}, status_code=500)
+
+@app.get("/api/payment/check/{out_trade_no}")
+async def check_payment_status(out_trade_no: str):
+    """
+    查询订单支付状态。
+    """
+    try:
+        global CONFIG
+        CONFIG = load_config()
+        wc_config = CONFIG.get("wechat_pay_config", {})
+        service = WeChatPayService(wc_config)
+        
+        # Call WeChat Query API
+        try:
+            res = service.query_order(out_trade_no)
+            trade_state = res.get("trade_state")
+            
+            if trade_state == "SUCCESS":
+                # Update DB to mark as paid
+                conn = get_db_connection()
+                try:
+                    cur = conn.cursor()
+                    
+                    # Get actual amount from Config
+                    amount = str(CONFIG.get("payment_amount", 0.01))
+                    
+                    # Update gsdh_data
+                    # Remove '_pending' suffix from payment_channel and set actual fee
+                    cur.execute("""
+                        UPDATE gsdh_data 
+                        SET fee = %s, 
+                            payment_channel = REPLACE(payment_channel, '_pending', '') 
+                        WHERE out_trade_no = %s
+                    """, (amount, out_trade_no))
+                    
+                    conn.commit()
+                    cur.close()
+                finally:
+                    release_db_connection(conn)
+                
+            return {"success": True, "trade_state": trade_state}
+            
+        except Exception as wx_e:
+             # Mock for testing without keys
+             if "Private key not loaded" in str(wx_e):
+                 # Simulate success for testing? No, stick to error.
+                 return {"success": False, "message": "配置错误"}
+             return {"success": False, "message": str(wx_e)}
+             
+    except Exception as e:
         return JSONResponse(content={"success": False, "message": str(e)}, status_code=500)
 
 @app.post("/api/payment/notify")

@@ -19,10 +19,16 @@
 # SERVER_PORT="6222"         
 
 # 配置局域网变量 - 公司局域网上传方法
-SERVER_HOST="6.6.6.86"           # 服务器IP地址
-SERVER_USER="ubuntu"                     # 服务器用户名
-SERVER_PASSWORD="qweasdzxc1"        # 服务器密码
-SERVER_PORT="22"                       # SSH端口，默认22
+# SERVER_HOST="6.6.6.86"           # 服务器IP地址
+# SERVER_USER="ubuntu"                     # 服务器用户名
+# SERVER_PASSWORD="qweasdzxc1"        # 服务器密码
+# SERVER_PORT="22"                       # SSH端口，默认22
+
+
+SERVER_HOST="6.6.6.66"           # 服务器IP地址
+SERVER_USER="quant"                     # 服务器用户名
+SERVER_PASSWORD="123quant-speed"        # 服务器密码
+SERVER_PORT="22"         
 
 
 IMAGE_NAME="checkin_sys"              # Docker镜像名称
@@ -163,27 +169,32 @@ deploy_on_server() {
     sshpass -p "$SERVER_PASSWORD" ssh -p "$SERVER_PORT" -o StrictHostKeyChecking=no "${SERVER_USER}@${SERVER_HOST}" << EOF
         set -e
         
+        # 定义 sudo 包装函数以处理密码输入
+        run_sudo() {
+            echo "$SERVER_PASSWORD" | sudo -S -p '' "\$@"
+        }
+
         echo "[INFO] 开始服务器端部署..."
         
         # 检查并停止现有容器
-        if sudo docker ps -a --format 'table {{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
+        if run_sudo docker ps -a --format 'table {{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
             echo "[INFO] 发现现有容器 ${CONTAINER_NAME}，正在停止并删除..."
-            sudo docker stop ${CONTAINER_NAME} || true
-            sudo docker rm ${CONTAINER_NAME} || true
+            run_sudo docker stop ${CONTAINER_NAME} || true
+            run_sudo docker rm ${CONTAINER_NAME} || true
         fi
         
         # 检查并删除现有镜像
-        if sudo docker images --format 'table {{.Repository}}:{{.Tag}}' | grep -q "^${IMAGE_NAME}:${IMAGE_TAG}$"; then
+        if run_sudo docker images --format 'table {{.Repository}}:{{.Tag}}' | grep -q "^${IMAGE_NAME}:${IMAGE_TAG}$"; then
             echo "[INFO] 发现现有镜像 ${IMAGE_NAME}:${IMAGE_TAG}，正在删除..."
-            sudo docker rmi ${IMAGE_NAME}:${IMAGE_TAG} || true
+            run_sudo docker rmi ${IMAGE_NAME}:${IMAGE_TAG} || true
         fi
         
         # 加载新镜像
         echo "[INFO] 加载新镜像..."
-        sudo docker load -i /tmp/${TAR_FILE}
+        run_sudo docker load -i /tmp/${TAR_FILE}
         
         # 验证镜像是否加载成功
-        if sudo docker images | grep -q "${IMAGE_NAME}"; then
+        if run_sudo docker images | grep -q "${IMAGE_NAME}"; then
             echo "[SUCCESS] 镜像加载成功"
         else
             echo "[ERROR] 镜像加载失败"
@@ -194,21 +205,21 @@ deploy_on_server() {
         echo "[INFO] 启动新容器..."
         # 使用 host 网络模式，让容器直接使用宿主机网络栈，从而可以通过 localhost:5432 访问宿主机数据库
         # 同时覆盖环境变量，强制使用本地数据库配置
-        sudo docker run -d --network host --name ${CONTAINER_NAME} \
+        run_sudo docker run -d --network host --name ${CONTAINER_NAME} \
             --env-file /tmp/.env \
             -e DB_HOST=localhost \
             -e DB_PORT=5432 \
             ${IMAGE_NAME}:${IMAGE_TAG}
         
         # 验证容器是否启动成功
-        if sudo docker ps | grep -q "${CONTAINER_NAME}"; then
+        if run_sudo docker ps | grep -q "${CONTAINER_NAME}"; then
             echo "[SUCCESS] 容器启动成功"
             echo "[INFO] 容器状态:"
-            sudo docker ps | grep "${CONTAINER_NAME}"
+            run_sudo docker ps | grep "${CONTAINER_NAME}"
         else
             echo "[ERROR] 容器启动失败"
             echo "[INFO] 查看容器日志:"
-            sudo docker logs ${CONTAINER_NAME}
+            run_sudo docker logs ${CONTAINER_NAME}
             exit 1
         fi
         
