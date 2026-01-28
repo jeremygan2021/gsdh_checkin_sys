@@ -7,6 +7,8 @@ import psycopg2
 from psycopg2 import pool
 from psycopg2.extras import RealDictCursor
 from typing import Optional, List, Dict
+import datetime
+from datetime import timedelta
 import random
 import uuid
 import os
@@ -40,6 +42,11 @@ DEFAULT_CONFIG = {
     "db_user": os.getenv("DB_USER", "gsdh"),
     "db_password": os.getenv("DB_PASSWORD", "123gsdh"),
     "db_name": os.getenv("DB_NAME", "gsdh"),
+    "enable_sms_verification": False,
+    "sms_verification_config": {
+        "template_code": "SMS_493295002",
+        "sign_name": "叠加态科技云南"
+    },
     "enable_ticket_validation": True,
     "enable_seating": True,
     "total_tables": 14,
@@ -47,7 +54,7 @@ DEFAULT_CONFIG = {
     "ticket_field_config": {
         "name": {"label": "姓名", "show": True, "required": True},
         "phone": {"label": "手机号码", "show": True, "required": True},
-        "industry_company": {"label": "单位名称", "show": True, "required": True}
+        "industry_company": {"label": "单位名称/行业类型", "show": True, "required": True}
     },
     "checkin_field_config": {
         "name": {"label": "姓名", "show": True, "required": True},
@@ -107,6 +114,9 @@ def save_config(config):
 
 CONFIG = load_config()
 
+# SMS Verification Storage (In-memory)
+SMS_CODES = {} # phone -> {code: str, expires_at: datetime}
+
 app = FastAPI()
 
 # 进程池全局变量
@@ -114,10 +124,28 @@ process_pool = None
 
 @app.on_event("startup")
 async def startup_event():
+    import sys
+    print(f"DEBUG: Running from {__file__}")
+    print(f"DEBUG: Python executable: {sys.executable}")
+    
     global process_pool
     # RK3588 有 8 个核心，预留一些给数据库和系统，使用 6 个核心进行计算
     process_pool = ProcessPoolExecutor(max_workers=6)
     print("ProcessPoolExecutor initialized with 6 workers")
+    
+    # Debug: Print all registered routes
+    print("=== Registered Routes ===")
+    for route in app.routes:
+        if hasattr(route, "methods"):
+            print(f"{route.path} {route.methods}")
+        else:
+            print(f"{route.path}")
+    print("=========================")
+
+@app.post("/api/test-sms")
+async def test_sms_simple():
+    return {"message": "Test SMS route is working"}
+
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -306,6 +334,7 @@ class CheckinRequest(BaseModel):
     gsdh_id: str
     name: str
     phone: str
+    verification_code: Optional[str] = None
     company_name: Optional[str] = None
     position: Optional[str] = None
     business_scope: Optional[str] = None
@@ -315,9 +344,112 @@ class CheckinRequest(BaseModel):
 class AddUserRequest(BaseModel):
     name: str
     phone: str
+    verification_code: Optional[str] = None
     industry_company: Optional[str] = None
     fee: Optional[str] = None
     payment_channel: Optional[str] = None
+
+class SendSMSRequest(BaseModel):
+    phone: str
+
+def verify_sms_code(phone: str, code: str) -> bool:
+    if not CONFIG.get("enable_sms_verification", False):
+        return True
+    
+    if not code:
+        return False
+        
+    record = SMS_CODES.get(phone)
+    if not record:
+        return False
+        
+    if datetime.datetime.now() > record["expires_at"]:
+        del SMS_CODES[phone]
+        return False
+        
+    if record["code"] == code:
+        # Optional: Delete after successful verification to prevent replay
+        # del SMS_CODES[phone] 
+        return True
+        
+    return False
+
+class VerifyCodeRequest(BaseModel):
+    phone: str
+    code: str
+
+@app.post("/api/verify-sms-code")
+def verify_sms_code_endpoint(req: VerifyCodeRequest):
+    if verify_sms_code(req.phone, req.code):
+         return JSONResponse({"success": True, "message": "验证成功"})
+    else:
+         return JSONResponse({"success": False, "message": "验证码错误或已过期"})
+
+@app.api_route("/api/send-sms", methods=["GET", "POST"])
+async def send_sms_endpoint(req: Request):
+    print(f"DEBUG: send_sms_endpoint called via {req.method}")
+    
+    # Handle GET for testing
+    if req.method == "GET":
+        return JSONResponse({"message": "GET method works, please use POST"})
+        
+    # Handle POST
+    try:
+        body = await req.json()
+        phone = body.get("phone")
+    except:
+        return JSONResponse({"success": False, "message": "Invalid JSON body"}, status_code=400)
+        
+    print(f"DEBUG: Processing phone={phone}")
+    
+    if not CONFIG.get("enable_sms_verification", False):
+        return JSONResponse({"success": False, "message": "短信验证未开启"})
+        
+    if not phone or len(phone) != 11:
+         return JSONResponse({"success": False, "message": "手机号格式错误"})
+         
+    # Generate 4 digit code
+    code = str(random.randint(1000, 9999))
+    
+    # Store code (expires in 5 minutes)
+    SMS_CODES[phone] = {
+        "code": code,
+        "expires_at": datetime.datetime.now() + timedelta(minutes=5)
+    }
+    
+    # Send SMS via external API
+    sms_config = CONFIG.get("sms_verification_config", {})
+    payload = {
+        "phone_number": phone,
+        "code": code,
+        "template_code": sms_config.get("template_code", "SMS_493295002"),
+        "sign_name": sms_config.get("sign_name", "叠加态科技云南")
+    }
+    
+    try:
+        print(f"DEBUG: Sending SMS payload: {payload}")
+        # Using a timeout to prevent hanging
+        res = requests.post(
+            'https://data.tangledup-ai.com/api/send-sms',
+            json=payload,
+            headers={'Content-Type': 'application/json', 'accept': 'application/json'},
+            timeout=30
+        )
+        
+        print(f"DEBUG: SMS API Response: {res.status_code} - {res.text}")
+        
+        if res.status_code == 200:
+            data = res.json()
+            if data.get("status") == "success":
+                 return JSONResponse({"success": True, "message": "验证码已发送"})
+            else:
+                 return JSONResponse({"success": False, "message": data.get("message", "发送失败")})
+        else:
+             return JSONResponse({"success": False, "message": f"发送失败: {res.status_code}"})
+             
+    except Exception as e:
+        print(f"SMS Send Error: {e}")
+        return JSONResponse({"success": False, "message": "发送验证码请求失败"})
 
 def get_db_connection():
     max_retries = 5
@@ -732,6 +864,15 @@ def search_user(query: str):
             else:
                 user = users[0]
         
+        # Normalize fee to float for frontend consistency
+        if user.get('fee'):
+            try:
+                user['fee'] = float(user['fee'])
+            except:
+                user['fee'] = 0.0
+        else:
+            user['fee'] = 0.0
+
         # Check if already signed
         if user.get('is_signed') == 'TRUE':
              # Check if already signed
@@ -776,6 +917,11 @@ def search_user(query: str):
 
 @app.post("/api/checkin")
 def checkin_user(checkin_data: CheckinRequest):
+    # Verify SMS Code if enabled
+    if CONFIG.get("enable_sms_verification", False):
+        if not verify_sms_code(checkin_data.phone, checkin_data.verification_code):
+             return JSONResponse(content={"success": False, "message": "手机验证码错误或已过期"}, status_code=400)
+
     try:
         conn = get_db_connection()
         cur = conn.cursor()
@@ -1518,6 +1664,7 @@ async def success_page(request: Request):
 class TicketPaymentRequest(BaseModel):
     name: str
     phone: str
+    verification_code: Optional[str] = None
     company_name: Optional[str] = None
     position: Optional[str] = None
     business_scope: Optional[str] = None
@@ -1627,6 +1774,11 @@ async def create_native_payment(req: TicketPaymentRequest, request: Request):
     try:
         global CONFIG
         CONFIG = load_config()
+        
+        # Verify SMS Code if enabled
+        if CONFIG.get("enable_sms_verification", False):
+            if not verify_sms_code(req.phone, req.verification_code):
+                 return JSONResponse(content={"success": False, "message": "手机验证码错误或已过期"}, status_code=400)
         
         if not CONFIG.get("enable_payment", False):
             return JSONResponse(content={"success": False, "message": "支付未开启"}, status_code=403)

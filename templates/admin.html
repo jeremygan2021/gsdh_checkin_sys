@@ -363,6 +363,10 @@
                     <input type="checkbox" id="enable_ticket_validation">
                     <label for="enable_ticket_validation">开启验票验证 (核对数据库与付款记录)</label>
                 </div>
+                <div class="checkbox-wrapper">
+                    <input type="checkbox" id="enable_sms_verification">
+                    <label for="enable_sms_verification">开启手机号短信验证 (SMS Verification)</label>
+                </div>
                 <p style="font-size: 0.9em; color: var(--text-muted); margin-left: 30px;">
                     关闭后将跳过数据库核查，直接允许签到（若用户不存在将自动创建）。
                 </p>
@@ -690,7 +694,7 @@
                 renderFieldConfig('ticket_field_config_body', config.ticket_field_config || {
                     "name": {"label": "姓名", "show": true, "required": true},
                     "phone": {"label": "手机号码", "show": true, "required": true},
-                    "industry_company": {"label": "单位名称", "show": true, "required": true}
+                    "industry_company": {"label": "行业名称/单位名称", "show": true, "required": true}
                 }, ["name", "phone", "industry_company"]);
 
                 renderFieldConfig('checkin_field_config_body', config.checkin_field_config || {
@@ -797,6 +801,7 @@
                 
                 // Checkin Config
                 enable_ticket_validation: document.getElementById('enable_ticket_validation').checked,
+                enable_sms_verification: document.getElementById('enable_sms_verification').checked,
 
                 // Payment Config
                 enable_payment: document.getElementById('enable_payment').checked,

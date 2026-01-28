@@ -269,6 +269,12 @@
                         <label>{{ field.label }}{% if field.required %} *{% endif %}</label>
                         {% if key == 'phone' %}
                             <input type="tel" id="{{ key }}" {% if field.required %}required{% endif %} placeholder="请输入{{ field.label }}" pattern="[0-9]{11}">
+                            {% if config.enable_sms_verification %}
+                            <div style="display: flex; gap: 10px; margin-top: 10px;">
+                                <input type="text" id="verification_code" placeholder="请先发送验证码" style="flex: 1;" disabled>
+                                <button type="button" id="send-code-btn" onclick="sendSmsCode()" style="width: auto; padding: 10px; font-size: 0.9rem; background: var(--secondary-color); margin-top: 0; border: none; border-radius: 8px; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; min-width: 100px;">发送验证码</button>
+                            </div>
+                            {% endif %}
                         {% else %}
                             <input type="text" id="{{ key }}" {% if field.required %}required{% endif %} placeholder="请输入{{ field.label }}">
                         {% endif %}
@@ -301,6 +307,57 @@
 
     <script>
         let pollTimer = null;
+        let isCodeVerified = false;
+
+        function updateSubmitButtonState() {
+            const btn = document.getElementById('submitBtn');
+            const codeInput = document.getElementById('verification_code');
+            // Only update if not in loading state (checking innerHTML for loading spinner)
+            if (btn.innerHTML.includes('loading')) return;
+
+            if (codeInput) {
+                 if (isCodeVerified && codeInput.value.trim().length === 4) {
+                     btn.disabled = false;
+                 } else {
+                     btn.disabled = true;
+                 }
+            } else {
+                 btn.disabled = false;
+            }
+        }
+        
+        async function verifyCode() {
+            const codeInput = document.getElementById('verification_code');
+            const phoneInput = document.getElementById('phone');
+            
+            if (!codeInput) return;
+            
+            const code = codeInput.value.trim();
+            const phone = phoneInput ? phoneInput.value.trim() : '';
+            
+            if (code.length === 4 && phone) {
+                 try {
+                    const res = await fetch('/api/verify-sms-code', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({phone: phone, code: code})
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        isCodeVerified = true;
+                        showMessage('验证码正确', 'success');
+                    } else {
+                        isCodeVerified = false;
+                        showMessage('验证码错误', 'error');
+                    }
+                 } catch(e) {
+                     isCodeVerified = false;
+                 }
+            } else {
+                isCodeVerified = false;
+            }
+            updateSubmitButtonState();
+        }
 
         function closeModal() {
             document.getElementById('qrModal').style.display = 'none';
@@ -309,9 +366,27 @@
             
             // Reset button state
             const btn = document.getElementById('submitBtn');
-            btn.disabled = false;
             btn.innerHTML = '立即支付报名';
+            updateSubmitButtonState();
         }
+
+        // Initialize button state on load
+        window.addEventListener('DOMContentLoaded', () => {
+            const codeInput = document.getElementById('verification_code');
+            const phoneInput = document.getElementById('phone');
+            
+            if (codeInput) {
+                updateSubmitButtonState();
+                codeInput.addEventListener('input', verifyCode);
+            }
+            
+            if (phoneInput) {
+                phoneInput.addEventListener('input', () => {
+                    isCodeVerified = false;
+                    updateSubmitButtonState();
+                });
+            }
+        });
 
         async function handlePayment(e) {
             e.preventDefault();
@@ -342,6 +417,7 @@
             const data = {
                 name: name,
                 phone: phone,
+                verification_code: getVal('verification_code'),
                 company_name: getVal('industry_company')
             };
             
@@ -383,14 +459,14 @@
                     }
                 } else {
                     showMessage(result.message || '支付请求失败', 'error');
-                    btn.disabled = false;
                     btn.innerHTML = originalText;
+                    updateSubmitButtonState();
                 }
             } catch (err) {
                 console.error(err);
                 showMessage(err.message || '网络请求错误，请重试', 'error');
-                btn.disabled = false;
                 btn.innerHTML = originalText;
+                updateSubmitButtonState();
             }
         }
         
@@ -432,6 +508,65 @@
             msg.textContent = text;
             msg.className = type;
             msg.style.display = 'block';
+        }
+
+        async function sendSmsCode() {
+            const phone = document.getElementById('phone').value.trim();
+            if (!phone || !/^1[3-9]\d{9}$/.test(phone)) {
+                showMessage('请输入有效的手机号码', 'error');
+                return;
+            }
+            
+            const btn = document.getElementById('send-code-btn');
+            const codeInput = document.getElementById('verification_code');
+            if (!btn) return;
+            
+            btn.disabled = true;
+            const originalText = "发送验证码";
+            // 添加loading效果
+            btn.innerHTML = '<span class="loading" style="width: 14px; height: 14px; border-width: 2px; margin-right: 6px;"></span>发送中';
+            
+            let count = 60;
+            
+            try {
+                const res = await fetch('/api/send-sms', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({phone: phone})
+                });
+                const data = await res.json();
+                
+                if (data.success) {
+                    showMessage('验证码已发送', 'success');
+                    
+                    // 成功后才允许输入验证码
+                    if (codeInput) {
+                        codeInput.disabled = false;
+                        codeInput.placeholder = "请输入验证码";
+                        codeInput.focus();
+                    }
+                    
+                    btn.innerText = `${count}s`;
+                    const timer = setInterval(() => {
+                        count--;
+                        btn.innerText = `${count}s`;
+                        if (count <= 0) {
+                            clearInterval(timer);
+                            btn.disabled = false;
+                            btn.innerText = originalText;
+                        }
+                    }, 1000);
+                } else {
+                    showMessage(data.message || '发送失败', 'error');
+                    btn.disabled = false;
+                    btn.innerText = originalText;
+                }
+            } catch (e) {
+                console.error(e);
+                showMessage('网络错误', 'error');
+                btn.disabled = false;
+                btn.innerText = originalText;
+            }
         }
     </script>
 </body>

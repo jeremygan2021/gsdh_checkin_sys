@@ -8,7 +8,8 @@
     "secondary_color": "#0066ff",
     "bg_color": "#050814",
     "header_image": "/static/image1.jpg",
-    "enable_ticket_validation": false,
+    "enable_ticket_validation": true,
+    "enable_sms_verification": true,
     "enable_payment": true,
     "payment_amount": 0.01,
     "wechat_pay_config": {
@@ -53,21 +54,21 @@
         "company_name": {
             "label": "单位名称",
             "show": true,
-            "required": false
+            "required": true
         },
         "position": {
             "label": "职务",
             "show": true,
-            "required": false
+            "required": true
         },
         "business_scope": {
             "label": "公司主要经营 / 业务",
             "show": true,
-            "required": false
+            "required": true
         },
         "vision_2026": {
             "label": "2026年业务愿景",
-            "show": true,
+            "show": false,
             "required": false
         }
     },
@@ -77,7 +78,7 @@
         "learn_more_url": "",
         "show_fields": {
             "name": true,
-            "company_name": true,
+            "company_name": false,
             "position": true,
             "vision_2026": true,
             "business_scope": true
@@ -85,7 +86,7 @@
     },
     "db_host": "6.6.6.66",
     "db_port": "5432",
-    "db_user": "123",
-    "db_password": "1231",
-    "db_name": "123"
+    "db_user": "AI_event",
+    "db_password": "123AI_event",
+    "db_name": "AI_event"
 }

@@ -524,35 +524,33 @@
                     <input type="text" id="form-phone" required>
                 </div>
 
-                {% set fc = config.field_config or {} %}
-                
-                {% if fc.company_name and fc.company_name.show %}
-                <div class="input-group">
-                    <label>{{ fc.company_name.label }}</label>
-                    <input type="text" id="form-company" placeholder="点此输入" {{ 'required' if fc.company_name.required else '' }}>
+                <div class="input-group hidden" id="sms-verification-group">
+                    <label>验证码</label>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="text" id="form-verification-code" placeholder="输入验证码" style="flex: 1;">
+                        <button type="button" id="send-checkin-code-btn" onclick="sendCheckinSms()" style="width: auto; padding: 14px; background: var(--secondary-color); margin-bottom: 0; border: none; border-radius: 8px; color: white; cursor: pointer; font-weight: bold;">发送验证码</button>
+                    </div>
                 </div>
-                {% endif %}
 
-                {% if fc.position and fc.position.show %}
-                <div class="input-group">
-                    <label>{{ fc.position.label }}</label>
-                    <input type="text" id="form-position" placeholder="点此输入" {{ 'required' if fc.position.required else '' }}>
+                <div class="input-group hidden" id="group-company">
+                    <label id="label-company">单位名称</label>
+                    <input type="text" id="form-company" placeholder="点此输入">
                 </div>
-                {% endif %}
 
-                {% if fc.business_scope and fc.business_scope.show %}
-                <div class="input-group">
-                    <label>{{ fc.business_scope.label }}</label>
-                    <textarea id="form-business" rows="2" placeholder="点此输入" {{ 'required' if fc.business_scope.required else '' }}></textarea>
+                <div class="input-group hidden" id="group-position">
+                    <label id="label-position">职务</label>
+                    <input type="text" id="form-position" placeholder="点此输入">
                 </div>
-                {% endif %}
 
-                {% if fc.vision_2026 and fc.vision_2026.show %}
-                <div class="input-group">
-                    <label>{{ fc.vision_2026.label }}</label>
-                    <textarea id="form-vision" rows="3" placeholder="点此输入 (为了业务更好对接，最好表述清晰)" {{ 'required' if fc.vision_2026.required else '' }}></textarea>
+                <div class="input-group hidden" id="group-business">
+                    <label id="label-business">公司主要经营 / 业务</label>
+                    <textarea id="form-business" rows="2" placeholder="点此输入"></textarea>
                 </div>
-                {% endif %}
+
+                <div class="input-group hidden" id="group-vision">
+                    <label id="label-vision">2026年业务愿景</label>
+                    <textarea id="form-vision" rows="3" placeholder="点此输入 (为了业务更好对接，最好表述清晰)"></textarea>
+                </div>
 
                 <input type="hidden" id="form-location" value="">
 
@@ -646,6 +644,138 @@
         // Inject Config
         const CONFIG = {{ config | tojson }};
 
+        let isCheckinCodeVerified = false;
+
+        async function refreshConfig() {
+            try {
+                const res = await fetch('/api/admin/config');
+                if (res.ok) {
+                    const newConfig = await res.json();
+                    // Update global CONFIG object
+                    Object.assign(CONFIG, newConfig);
+                    applyConfigUI();
+                }
+            } catch (e) {
+                console.error("Failed to refresh config", e);
+            }
+        }
+
+        function applyConfigUI() {
+            const smsGroup = document.getElementById('sms-verification-group');
+            if (smsGroup) {
+                if (CONFIG.enable_sms_verification) {
+                    smsGroup.classList.remove('hidden');
+                } else {
+                    smsGroup.classList.add('hidden');
+                }
+            }
+
+            // Apply field config (Show/Hide/Required)
+            const fc = CONFIG.checkin_field_config || {};
+            const fields = [
+                { key: 'company_name', groupId: 'group-company', inputId: 'form-company', labelId: 'label-company' },
+                { key: 'position', groupId: 'group-position', inputId: 'form-position', labelId: 'label-position' },
+                { key: 'business_scope', groupId: 'group-business', inputId: 'form-business', labelId: 'label-business' },
+                { key: 'vision_2026', groupId: 'group-vision', inputId: 'form-vision', labelId: 'label-vision' }
+            ];
+
+            fields.forEach(field => {
+                const conf = fc[field.key] || { show: false, required: false, label: '' };
+                const group = document.getElementById(field.groupId);
+                const input = document.getElementById(field.inputId);
+                const label = document.getElementById(field.labelId);
+
+                if (group && input) {
+                    // Visibility
+                    if (conf.show) {
+                        group.classList.remove('hidden');
+                    } else {
+                        group.classList.add('hidden');
+                    }
+
+                    // Required
+                    input.required = conf.required === true;
+
+                    // Label
+                    if (label && conf.label) {
+                        label.textContent = conf.label;
+                    }
+                }
+            });
+        }
+
+        function updateCheckinButtonState() {
+            const btn = document.getElementById('submit-btn');
+            const codeInput = document.getElementById('form-verification-code');
+            // Check if loading (by checking loader class or text content)
+            if (btn.innerHTML.includes('loader')) return;
+
+            if (codeInput) {
+                if (isCheckinCodeVerified && codeInput.value.trim().length === 4) {
+                    btn.disabled = false;
+                } else {
+                    btn.disabled = true;
+                }
+            } else {
+                btn.disabled = false;
+            }
+        }
+        
+        async function verifyCheckinCode() {
+            const codeInput = document.getElementById('form-verification-code');
+            const phoneInput = document.getElementById('form-phone');
+            const errorDiv = document.getElementById('submit-error');
+            
+            if (!codeInput) return;
+            
+            const code = codeInput.value.trim();
+            const phone = phoneInput ? phoneInput.value.trim() : '';
+            
+            if (code.length === 4 && phone) {
+                 try {
+                    const res = await fetch('/api/verify-sms-code', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({phone: phone, code: code})
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        isCheckinCodeVerified = true;
+                        errorDiv.classList.add('hidden');
+                    } else {
+                        isCheckinCodeVerified = false;
+                        errorDiv.textContent = "验证码错误";
+                        errorDiv.classList.remove('hidden');
+                    }
+                 } catch(e) {
+                     isCheckinCodeVerified = false;
+                 }
+            } else {
+                isCheckinCodeVerified = false;
+                if (code.length < 4) errorDiv.classList.add('hidden');
+            }
+            updateCheckinButtonState();
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            applyConfigUI();
+            const codeInput = document.getElementById('form-verification-code');
+            const phoneInput = document.getElementById('form-phone');
+            
+            if (codeInput) {
+                codeInput.addEventListener('input', verifyCheckinCode);
+                // Initial check
+                updateCheckinButtonState();
+            }
+            
+            if (phoneInput) {
+                phoneInput.addEventListener('input', () => {
+                    isCheckinCodeVerified = false;
+                    updateCheckinButtonState();
+                });
+            }
+        });
+
         async function searchUser() {
             const query = document.getElementById('search-input').value.trim();
             const btn = document.getElementById('search-btn');
@@ -672,6 +802,7 @@
 
                 if (response.ok) {
                     if (data.allow_create) {
+                        await refreshConfig();
                         const u = data.user || {};
                         const tempId = 'TEMP_' + Date.now();
                         currentUser = { new_id: tempId };
@@ -727,6 +858,7 @@
                         }
                     } else {
                         // Single user found
+                        await refreshConfig();
                         selectUser(data.user);
                     }
                 } else {
@@ -743,11 +875,15 @@
             }
         }
 
-        function selectUser(user) {
+        async function selectUser(user) {
             // Check if fee is 0 (unpaid)
-            if (user.fee == 0) {
+            // Ensure fee is treated as number. If fee is missing or 0, block checkin.
+            // CONFIG.payment_amount is usually 0.01 or 26.
+            const fee = parseFloat(user.fee || 0);
+            if (fee <= 0) {
                 const errorDiv = document.getElementById('search-error');
-                errorDiv.textContent = "⚠️ 无法签到：请先前往签到处付费26元";
+                const amount = CONFIG.payment_amount || 26;
+                errorDiv.textContent = `⚠️ 无法签到：请先前往签到处付费${amount}元`;
                 errorDiv.classList.remove('hidden');
                 errorDiv.classList.add('important-warning');
                 errorDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -758,18 +894,32 @@
             
             // Populate form
             document.getElementById('gsdh-id').value = user.new_id;
-            document.getElementById('form-name').value = user.name;
-            document.getElementById('form-phone').value = user.phone;
-            document.getElementById('form-company').value = user.industry_company || ''; // Pre-fill if we have something roughly mapping
             
+            const setVal = (id, val) => {
+                const el = document.getElementById(id);
+                if (el) el.value = val || '';
+            };
+
+            setVal('form-name', user.name);
+            setVal('form-phone', user.phone);
+            setVal('form-company', user.industry_company);
+            // Clear other optional fields to avoid carrying over data if user switches
+            setVal('form-position', user.position); // Note: user.position might not exist in search result
+            setVal('form-business', user.business_scope); 
+            setVal('form-vision', user.vision_2026);
+
             // Display preview
-            document.getElementById('display-name').textContent = user.name;
-            document.getElementById('display-phone').textContent = user.phone;
-            document.getElementById('display-company').textContent = user.industry_company || '暂无单位信息';
+            if (document.getElementById('display-name')) document.getElementById('display-name').textContent = user.name;
+            if (document.getElementById('display-phone')) document.getElementById('display-phone').textContent = user.phone;
+            if (document.getElementById('display-company')) document.getElementById('display-company').textContent = user.industry_company || '暂无单位信息';
+
+            // Ensure UI reflects current config (e.g. SMS button)
+            applyConfigUI();
 
             // Switch steps
             document.getElementById('step-search').classList.add('hidden');
             document.getElementById('step-form').classList.remove('hidden');
+            updateCheckinButtonState();
         }
 
         async function submitCheckin(e) {
@@ -791,6 +941,7 @@
                 gsdh_id: getVal('gsdh-id'),
                 name: getVal('form-name'),
                 phone: getVal('form-phone'),
+                verification_code: getVal('form-verification-code'),
                 company_name: getVal('form-company'),
                 position: getVal('form-position'),
                 business_scope: getVal('form-business'),
@@ -840,8 +991,8 @@
                 errorDiv.textContent = "网络错误，请稍后重试";
                 errorDiv.classList.remove('hidden');
             } finally {
-                btn.disabled = false;
                 btn.textContent = '确认签到';
+                updateCheckinButtonState();
             }
         }
         
@@ -903,6 +1054,57 @@
             document.getElementById('user-list').innerHTML = '';
             document.getElementById('checkin-form').reset();
             currentUser = null;
+            updateCheckinButtonState();
+        }
+
+        async function sendCheckinSms() {
+            const phone = document.getElementById('form-phone').value.trim();
+            const errorDiv = document.getElementById('submit-error');
+            
+            if (!phone || !/^1[3-9]\d{9}$/.test(phone)) {
+                errorDiv.textContent = '请输入有效的手机号码';
+                errorDiv.classList.remove('hidden');
+                return;
+            } else {
+                errorDiv.classList.add('hidden');
+            }
+            
+            const btn = document.getElementById('send-checkin-code-btn');
+            if (!btn) return;
+            
+            btn.disabled = true;
+            let count = 60;
+            const originalText = "发送验证码";
+            
+            try {
+                const res = await fetch('/api/send-sms', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({phone: phone})
+                });
+                const data = await res.json();
+                
+                if (data.success) {
+                    btn.innerText = `${count}s`;
+                    const timer = setInterval(() => {
+                        count--;
+                        btn.innerText = `${count}s`;
+                        if (count <= 0) {
+                            clearInterval(timer);
+                            btn.disabled = false;
+                            btn.innerText = originalText;
+                        }
+                    }, 1000);
+                } else {
+                    errorDiv.textContent = data.message || '发送失败';
+                    errorDiv.classList.remove('hidden');
+                    btn.disabled = false;
+                }
+            } catch (e) {
+                errorDiv.textContent = '网络错误';
+                errorDiv.classList.remove('hidden');
+                btn.disabled = false;
+            }
         }
     </script>
 </body>
