@@ -1076,6 +1076,9 @@
             let count = 60;
             const originalText = "发送验证码";
             
+            // Show loading state
+            btn.innerHTML = '<span class="loader" style="width: 14px; height: 14px; border-width: 2px; margin-right: 5px;"></span> 发送中...';
+            
             try {
                 const res = await fetch('/api/send-sms', {
                     method: 'POST',
@@ -1099,11 +1102,13 @@
                     errorDiv.textContent = data.message || '发送失败';
                     errorDiv.classList.remove('hidden');
                     btn.disabled = false;
+                    btn.innerText = originalText;
                 }
             } catch (e) {
                 errorDiv.textContent = '网络错误';
                 errorDiv.classList.remove('hidden');
                 btn.disabled = false;
+                btn.innerText = originalText;
             }
         }
     </script>
