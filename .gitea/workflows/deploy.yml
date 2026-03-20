@@ -26,13 +26,24 @@ env:
   CONTAINER_NAME: checkin_sys-container
   LOCAL_PORT: 8800
   CONTAINER_PORT: 8800
+  # 使用国内镜像源加速 Actions
+  ACTIONS_ALLOW_UNSECURE_COMMANDS: true
 
 jobs:
   build:
-    runs-on: ubuntu
+    runs-on: ubuntu-latest
     if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && !inputs.upload_only)
 
     steps:
+      - name: 设置国内镜像源
+        env:
+          # 使用 ghproxy 代理 GitHub 资源
+          GH_PROXY: https://ghproxy.com/
+        run: |
+          # 配置 git 代理
+          git config --global url."https://ghproxy.com/".insteadOf "https://github.com/"
+          git config --global url."https://github.com/".insteadOf "https://ghproxy.com/https://github.com/"
+
       - name: 检出代码
         uses: actions/checkout@v4
 
@@ -75,6 +86,13 @@ jobs:
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
 
     steps:
+      - name: 设置国内镜像源
+        env:
+          GH_PROXY: https://ghproxy.com/
+        run: |
+          git config --global url."https://ghproxy.com/".insteadOf "https://github.com/"
+          git config --global url."https://github.com/".insteadOf "https://ghproxy.com/https://github.com/"
+
       - name: 检出代码
         uses: actions/checkout@v4
 
