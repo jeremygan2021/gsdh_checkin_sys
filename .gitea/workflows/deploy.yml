@@ -1,0 +1,184 @@
+name: Docker 构建与部署
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      arch:
+        description: '构建架构'
+        required: true
+        default: 'amd64'
+        type: choice
+        options:
+          - amd64
+          - arm64
+          - both
+      upload_only:
+        description: '仅上传已存在的tar文件'
+        required: false
+        default: 'false'
+        type: boolean
+
+env:
+  IMAGE_NAME: checkin_sys
+  IMAGE_TAG: latest
+  CONTAINER_NAME: checkin_sys-container
+  LOCAL_PORT: 8800
+  CONTAINER_PORT: 8800
+
+jobs:
+  build:
+    runs-on: ubuntu
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && !inputs.upload_only)
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 提取架构信息
+        id: arch
+        run: |
+          if [ "${{ github.event.inputs.arch }}" == "arm64" ]; then
+            echo "platform=linux/arm64" >> $GITHUB_OUTPUT
+            echo "arch_suffix=-arm64" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event.inputs.arch }}" == "both" ]; then
+            echo "platforms=linux/amd64,linux/arm64" >> $GITHUB_OUTPUT
+          else
+            echo "platform=linux/amd64" >> $GITHUB_OUTPUT
+            echo "arch_suffix=-amd64" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 构建 Docker 镜像
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: ${{ steps.arch.outputs.platforms || 'linux/amd64' }}
+          push: false
+          load: true
+          tags: ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          outputs: type=docker,dest=${{ env.IMAGE_NAME }}-${{ env.IMAGE_TAG }}${{ steps.arch.outputs.arch_suffix }}.tar
+
+      - name: 上传镜像 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-image-${{ steps.arch.outputs.arch_suffix || '-amd64' }}
+          path: ${{ env.IMAGE_NAME }}-${{ env.IMAGE_TAG }}${{ steps.arch.outputs.arch_suffix }}.tar
+          retention-days: 1
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 下载镜像 artifact (AMD64)
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && (inputs.arch == 'amd64' || inputs.arch == 'both'))
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-image--amd64
+          path: .
+
+      - name: 下载镜像 artifact (ARM64)
+        if: github.event_name == 'workflow_dispatch' && inputs.arch == 'both'
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-image--arm64
+          path: .
+
+      - name: 安装 sshpass
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y sshpass
+
+      - name: 上传到服务器
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
+          SERVER_PORT: ${{ secrets.SERVER_PORT }}
+          TAR_FILE: ${{ env.IMAGE_NAME }}-${{ env.IMAGE_TAG }}-amd64.tar
+        run: |
+          sshpass -p "$SERVER_PASSWORD" scp -P "$SERVER_PORT" -o StrictHostKeyChecking=no "$TAR_FILE" "${SERVER_USER}@${SERVER_HOST}:/tmp/"
+          sshpass -p "$SERVER_PASSWORD" scp -P "$SERVER_PORT" -o StrictHostKeyChecking=no ".env" "${SERVER_USER}@${SERVER_HOST}:/tmp/"
+
+      - name: 在服务器上部署
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
+          SERVER_PORT: ${{ secrets.SERVER_PORT }}
+          TAR_FILE: ${{ env.IMAGE_NAME }}-${{ env.IMAGE_TAG }}-amd64.tar
+        run: |
+          sshpass -p "$SERVER_PASSWORD" ssh -p "$SERVER_PORT" -o StrictHostKeyChecking=no "${SERVER_USER}@${SERVER_HOST}" << 'EOF'
+            set -e
+
+            run_sudo() {
+                echo "$SERVER_PASSWORD" | sudo -S -p '' "$@"
+            }
+
+            echo "[INFO] 开始服务器端部署..."
+
+            # 检查并停止现有容器
+            if run_sudo docker ps -a --format 'table {{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
+                echo "[INFO] 发现现有容器 ${CONTAINER_NAME}，正在停止并删除..."
+                run_sudo docker stop ${CONTAINER_NAME} || true
+                run_sudo docker rm ${CONTAINER_NAME} || true
+            fi
+
+            # 检查并删除现有镜像
+            if run_sudo docker images --format 'table {{.Repository}}:{{.Tag}}' | grep -q "^${IMAGE_NAME}:${IMAGE_TAG}$"; then
+                echo "[INFO] 发现现有镜像 ${IMAGE_NAME}:${IMAGE_TAG}，正在删除..."
+                run_sudo docker rmi ${IMAGE_NAME}:${IMAGE_TAG} || true
+            fi
+
+            # 加载新镜像
+            echo "[INFO] 加载新镜像..."
+            run_sudo docker load -i /tmp/${TAR_FILE}
+
+            # 验证镜像是否加载成功
+            if run_sudo docker images | grep -q "${IMAGE_NAME}"; then
+                echo "[SUCCESS] 镜像加载成功"
+            else
+                echo "[ERROR] 镜像加载失败"
+                exit 1
+            fi
+
+            # 启动新容器
+            echo "[INFO] 启动新容器..."
+            run_sudo docker run -d --network host --name ${CONTAINER_NAME} \
+                --env-file /tmp/.env \
+                -e DB_HOST=localhost \
+                -e DB_PORT=5432 \
+                ${IMAGE_NAME}:${IMAGE_TAG}
+
+            # 验证容器是否启动成功
+            if run_sudo docker ps | grep -q "${CONTAINER_NAME}"; then
+                echo "[SUCCESS] 容器启动成功"
+                echo "[INFO] 容器状态:"
+                run_sudo docker ps | grep "${CONTAINER_NAME}"
+            else
+                echo "[ERROR] 容器启动失败"
+                echo "[INFO] 查看容器日志:"
+                run_sudo docker logs ${CONTAINER_NAME}
+                exit 1
+            fi
+
+            # 清理临时文件
+            echo "[INFO] 清理临时文件..."
+            rm -f /tmp/${TAR_FILE}
+            rm -f /tmp/.env
+
+            echo "[SUCCESS] 部署完成！"
+            echo "[INFO] 应用访问地址: http://${SERVER_HOST}:${LOCAL_PORT}"
+          EOF
+
+      - name: 清理本地临时文件
+        run: |
+          rm -f ${{ env.IMAGE_NAME }}-${{ env.IMAGE_TAG }}-*.tar

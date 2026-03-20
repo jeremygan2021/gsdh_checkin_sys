@@ -707,11 +707,13 @@
         function updateCheckinButtonState() {
             const btn = document.getElementById('submit-btn');
             const codeInput = document.getElementById('form-verification-code');
+            const smsGroup = document.getElementById('sms-verification-group');
             // Check if loading (by checking loader class or text content)
             if (btn.innerHTML.includes('loader')) return;
 
-            if (codeInput) {
-                if (isCheckinCodeVerified && codeInput.value.trim().length === 4) {
+            // Check if SMS verification is enabled (group is visible)
+            if (smsGroup && !smsGroup.classList.contains('hidden')) {
+                if (isCheckinCodeVerified && codeInput && codeInput.value.trim().length === 4) {
                     btn.disabled = false;
                 } else {
                     btn.disabled = true;
@@ -817,6 +819,8 @@
 
                         document.getElementById('step-search').classList.add('hidden');
                         document.getElementById('step-form').classList.remove('hidden');
+                        applyConfigUI();
+                        updateCheckinButtonState();
                         return;
                     }
 
